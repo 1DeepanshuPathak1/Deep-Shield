@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}Your Score | Deep Shield{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div class="shell">
+    <h1>Your <span class="hero__accent">score</span></h1>
+  </div>
+</section>
+
+<section class="section">
+  <div class="shell">
+    {% set percent = (correct * 100 // total) if total else 0 %}
+    <div class="card scorecard reveal">
+      <div>
+        <div class="scorecard__value">{{ correct }} / {{ total }}</div>
+        <div style="color:var(--ink-2); font-size:0.95rem;">{{ percent }}% correct</div>
+      </div>
+      <div style="flex:1; min-width:220px;">
+        <div class="meter__head">
+          <span>You: {{ percent }}%</span>
+          <span>Deep Shield: 88%</span>
+        </div>
+        <div class="meter__track">
+          <div class="meter__real" style="width: {{ percent }}%;"></div>
+          <div style="width: {{ 100 - percent }}%; background: var(--surface-2);"></div>
+        </div>
+        <p style="margin-top:12px; color:var(--ink-2); font-size:0.9rem;">
+          {% if percent >= 88 %}
+            You matched or beat the model. Face-swap artefacts are visible to a careful human eye.
+          {% elif percent >= 60 %}
+            A solid score. The model still edges ahead because it inspects pixel-level texture that
+            the eye smooths over.
+          {% else %}
+            Harder than it looks. Modern face swaps defeat casual inspection, which is exactly why
+            automated detection matters.
+          {% endif %}
+        </p>
+      </div>
+    </div>
+
+    <div class="card card--pad reveal" style="margin-top:24px;">
+      <h2 style="font-size:1.15rem; margin-bottom:6px;">Answer breakdown</h2>
+      <p style="color:var(--ink-3); font-size:0.86rem; margin-bottom:10px;">Ground truth comes from the folder each image was drawn from.</p>
+      {% for row in results %}
+      <div class="result-row">
+        <img src="{{ url_for('static', filename=row.image) }}" alt="" />
+        <div style="flex:1;">
+          <div style="font-weight:600; font-size:0.92rem;">
+            You said {{ row.answer }} &middot; actually {{ row.truth }}
+          </div>
+        </div>
+        <span class="tag {{ 'tag--real' if row.correct else 'tag--fake' }}">
+          {{ 'CORRECT' if row.correct else 'WRONG' }}
+        </span>
+      </div>
+      {% endfor %}
+    </div>
+
+    <div style="display:flex; justify-content:center; margin-top:28px;">
+      <a class="btn btn--ghost" href="{{ url_for('quiz') }}"><i class="fa-solid fa-rotate-right"></i> Try again</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

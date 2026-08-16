@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Video Detection | Deep Shield{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div class="shell">
+    <h1>Video <span class="hero__accent">analysis</span></h1>
+    <p>
+      Deep Shield samples 20 frames across your clip, finds every face, and scores each one.
+      A typical clip takes 30&ndash;60 seconds &mdash; you will see each stage as it happens.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="shell">
+    <div class="uploader">
+      <div class="card card--pad">
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="file-input" accept="video/mp4,video/x-msvideo,video/quicktime,video/webm" />
+          <div class="dropzone__icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+          <div class="dropzone__title">Drop a video here, or click to browse</div>
+          <div class="dropzone__hint">MP4, AVI, MOV or WEBM</div>
+        </div>
+
+        <div class="filechip" id="file-chip">
+          <i class="fa-solid fa-film" style="color:var(--brand-ink)"></i>
+          <span class="filechip__name" id="file-name"></span>
+          <span class="filechip__size" id="file-size"></span>
+        </div>
+
+        <video id="preview" controls playsinline style="display:none; margin-top:16px; border-radius:12px; width:100%; background:#000;"></video>
+
+        <button class="btn btn--primary btn--block" id="analyse" type="button" style="margin-top:18px;">
+          <i class="fa-solid fa-play"></i> Start analysis
+        </button>
+
+        <div class="alert" id="alert"></div>
+
+        <div class="progress" id="progress">
+          <div class="progress__head">
+            <span class="progress__stage" id="stage">Preparing</span>
+            <span class="progress__pct" id="pct">0%</span>
+          </div>
+          <div class="progress__track"><div class="progress__bar" id="bar"></div></div>
+          <div class="progress__steps">
+            <span class="pstep" data-at="3"><span class="pstep__dot"></span>Upload</span>
+            <span class="pstep" data-at="6"><span class="pstep__dot"></span>Decode</span>
+            <span class="pstep" data-at="30"><span class="pstep__dot"></span>Face detection</span>
+            <span class="pstep" data-at="60"><span class="pstep__dot"></span>Classification</span>
+            <span class="pstep" data-at="92"><span class="pstep__dot"></span>Verdict</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="verdict" id="verdict">
+        <div class="verdict__top">
+          <span class="verdict__badge" id="verdict-badge"></span>
+          <span class="verdict__headline" id="verdict-headline"></span>
+        </div>
+        <p class="verdict__reason" id="verdict-reason"></p>
+
+        <div class="meter">
+          <div class="meter__head">
+            <span id="meter-fake"></span>
+            <span id="meter-real"></span>
+          </div>
+          <div class="meter__track">
+            <div class="meter__fake" id="meter-fake-bar"></div>
+            <div class="meter__real" id="meter-real-bar"></div>
+          </div>
+        </div>
+
+        <div class="evidence" id="evidence"></div>
+
+        <div class="readme">
+          <strong>How to read this.</strong> Deep Shield does not judge the video as a whole. It
+          scores every face it finds, one at a time. The bar above shows how those individual
+          faces split. A clip is flagged as manipulated once at least
+          <strong id="threshold-note">5</strong> faces look synthetic, because a genuine video
+          almost never produces that many false alarms.
+        </div>
+      </div>
+
+      <div class="frames" id="frames" style="display:none;">
+        <div class="section__head">
+          <h2 style="font-size:1.35rem;">Frame-by-frame evidence</h2>
+          <p style="font-size:0.93rem;">Each thumbnail is a sampled frame with its own verdict and confidence, timestamped to where it occurs in the clip.</p>
+        </div>
+        <div class="frames__grid" id="frames-grid"></div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  var preview = document.getElementById("preview");
+  var verdictBox = document.getElementById("verdict");
+  var framesBox = document.getElementById("frames");
+  var framesGrid = document.getElementById("frames-grid");
+
+  function evidenceItem(value, label) {
+    return '<div class="evidence__item"><div class="evidence__value">' + value +
+      '</div><div class="evidence__label">' + label + "</div></div>";
+  }
+
+  createAnalyser({
+    endpoint: "/api/analyze/video",
+    inputId: "file-input",
+    dropzoneId: "dropzone",
+    chipId: "file-chip",
+    chipNameId: "file-name",
+    chipSizeId: "file-size",
+    submitId: "analyse",
+    progressId: "progress",
+    barId: "bar",
+    stageId: "stage",
+    pctId: "pct",
+    alertId: "alert",
+    onSelect: function (file) {
+      preview.src = URL.createObjectURL(file);
+      preview.style.display = "block";
+      verdictBox.classList.remove("is-on");
+      framesBox.style.display = "none";
+    },
+    onResult: function (data) {
+      var fake = data.verdict === "Fake";
+      verdictBox.className = "verdict is-on " + (fake ? "verdict--fake" : "verdict--real");
+
+      document.getElementById("verdict-badge").innerHTML =
+        '<i class="fa-solid ' + (fake ? "fa-triangle-exclamation" : "fa-circle-check") + '"></i> ' +
+        (fake ? "MANIPULATED" : "AUTHENTIC");
+      document.getElementById("verdict-headline").textContent = fake
+        ? "This video shows signs of deepfake manipulation."
+        : "No meaningful signs of manipulation were found.";
+      document.getElementById("verdict-reason").textContent = data.reason;
+      document.getElementById("threshold-note").textContent = data.threshold;
+
+      document.getElementById("meter-fake").textContent =
+        data.fakeFaces + " manipulated (" + data.fakeShare + "%)";
+      document.getElementById("meter-real").textContent = data.realFaces + " authentic";
+      document.getElementById("meter-fake-bar").style.width = data.fakeShare + "%";
+      document.getElementById("meter-real-bar").style.width = (100 - data.fakeShare) + "%";
+
+      document.getElementById("evidence").innerHTML =
+        evidenceItem(data.analysedFaces, "Faces analysed") +
+        evidenceItem(data.framesWithFace + " / " + data.framesSampled, "Frames with a face") +
+        evidenceItem(data.averageConfidence + "%", "Average confidence") +
+        evidenceItem(data.peakConfidence + "%", "Peak confidence") +
+        evidenceItem(data.durationSeconds + "s", "Clip duration") +
+        evidenceItem(data.resolution, "Resolution");
+
+      framesGrid.innerHTML = data.frames
+        .map(function (frame) {
+          var cls = frame.label === "Fake" ? "tag--fake" : "tag--real";
+          return (
+            '<figure class="frame"><img class="frame__img" loading="lazy" src="' +
+            frame.image + '" alt="Frame at ' + frame.timestamp + ' seconds" />' +
+            '<figcaption class="frame__meta"><span class="tag ' + cls + '">' +
+            frame.label.toUpperCase() + " " + frame.confidence + "%</span>" +
+            '<span class="frame__time">' + frame.timestamp + "s</span></figcaption></figure>"
+          );
+        })
+        .join("");
+      framesBox.style.display = data.frames.length ? "block" : "none";
+      verdictBox.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+  });
+</script>
+{% endblock %}

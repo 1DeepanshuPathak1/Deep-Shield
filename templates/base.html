@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>{% block title %}Deep Shield{% endblock %}</title>
+  <meta name="description" content="{% block description %}Deep Shield detects manipulated audio and video using deep learning.{% endblock %}" />
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='mvit_crest.png') }}" />
+  <script>
+    (function () {
+      try {
+        var saved = localStorage.getItem("ds-theme");
+        if (saved) document.documentElement.setAttribute("data-theme", saved);
+      } catch (e) {}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/deepshield.css') }}" />
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <header class="nav">
+    <div class="shell nav__inner">
+      <a class="brand" href="{{ url_for('index') }}">
+        <img class="brand__crest" src="{{ url_for('static', filename='mvit_crest.png') }}" alt="Sir M. Visvesvaraya Institute of Technology" />
+        <span class="brand__name">Deep Shield</span>
+      </a>
+
+      <nav class="nav__links" id="nav-links">
+        <a class="nav__link" href="{{ url_for('index') }}" {% if active == 'home' %}aria-current="page"{% endif %}>Home</a>
+        <a class="nav__link" href="{{ url_for('video_page') }}" {% if active == 'video' %}aria-current="page"{% endif %}>Video</a>
+        <a class="nav__link" href="{{ url_for('audio_page') }}" {% if active == 'audio' %}aria-current="page"{% endif %}>Audio</a>
+        <a class="nav__link" href="{{ url_for('quiz') }}" {% if active == 'quiz' %}aria-current="page"{% endif %}>Can You Tell?</a>
+        <a class="nav__link" href="{{ url_for('results_graph') }}" {% if active == 'results' %}aria-current="page"{% endif %}>Results</a>
+        <a class="nav__link" href="{{ url_for('about') }}" {% if active == 'about' %}aria-current="page"{% endif %}>About</a>
+      </nav>
+
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button class="icon-btn" id="theme-toggle" type="button" aria-label="Switch theme"></button>
+        <button class="icon-btn nav__toggle" id="nav-toggle" type="button" aria-expanded="false" aria-label="Menu">
+          <i class="fa-solid fa-bars"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <main id="main">
+    {% block content %}{% endblock %}
+  </main>
+
+  <script src="{{ url_for('static', filename='js/deepshield.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

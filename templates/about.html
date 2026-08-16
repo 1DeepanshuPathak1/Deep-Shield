@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}About | Deep Shield{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div class="shell">
+    <h1>About the <span class="hero__accent">project</span></h1>
+    <p>
+      Deep Shield is a major project built at Sir M. Visvesvaraya Institute of Technology. It
+      detects manipulated media and, just as importantly, explains why it reached each verdict.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="shell">
+    <div class="grid grid--2">
+      <article class="card feature reveal">
+        <div class="feature__icon"><i class="fa-solid fa-wave-square"></i></div>
+        <h3>Audio detection</h3>
+        <p>
+          A clip is converted into 17 numbers: 13 Mel-frequency cepstral coefficients that describe
+          the shape of the vocal tract, plus spectral centroid, chroma, zero-crossing rate and RMSE
+          energy. A Random Forest of 100 decision trees classifies that fingerprint. Synthetic
+          speech tends to be too smooth and too regular in exactly these measurements.
+        </p>
+      </article>
+
+      <article class="card feature reveal">
+        <div class="feature__icon"><i class="fa-solid fa-clapperboard"></i></div>
+        <h3>Video detection</h3>
+        <p>
+          Twenty frames are sampled evenly across the clip. MTCNN locates faces, each face is
+          resized to 100&times;100, and a ResNet50 + EfficientNetB0 ensemble scores it. The two
+          backbones look for different artefacts &mdash; blending seams at the jaw and hairline,
+          and texture that is too uniform across the skin.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="shell">
+    <div class="section__head">
+      <h2>The training data</h2>
+      <p>
+        Deep Shield is trained and evaluated on two public datasets, together holding 58,873 media
+        files.
+      </p>
+    </div>
+
+    <div class="card card--pad reveal" style="overflow-x:auto;">
+      <table class="split-table">
+        <thead>
+          <tr><th>Dataset</th><th>Medium</th><th>Authentic</th><th>Manipulated</th><th>Size</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>SceneFake</td><td>Audio (16 kHz WAV)</td><td>11,407</td><td>47,367</td><td>5.95 GB</td></tr>
+          <tr><td>DFDV</td><td>Video (MP4)</td><td>49</td><td>50</td><td>0.14 GB</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card card--pad reveal" style="margin-top:20px;">
+      <h3 style="font-size:1.1rem; margin-bottom:8px;">What do train, dev and eval mean?</h3>
+      <p style="color:var(--ink-2); font-size:0.95rem; margin-bottom:18px;">
+        The audio dataset arrives already divided into three groups. The split exists to stop a
+        model from simply memorising its answers, and each group has a strict job.
+      </p>
+
+      <table class="split-table">
+        <thead>
+          <tr><th>Split</th><th>Job</th><th>Does the model learn from it?</th><th>Files</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>train</td>
+            <td>Teaching set. The model studies these clips and adjusts itself to fit them.</td>
+            <td>Yes &mdash; this is the only data it learns from</td>
+            <td>13,185</td>
+          </tr>
+          <tr>
+            <td>dev</td>
+            <td>Practice exam, also called validation. Used while building the model to tune settings and spot overfitting early.</td>
+            <td>No, but it does influence the choices made</td>
+            <td>12,843</td>
+          </tr>
+          <tr>
+            <td>eval</td>
+            <td>Final exam. Held back untouched until the very end, so the score is an honest estimate on unseen data.</td>
+            <td>No, and it is never looked at during training</td>
+            <td>32,746</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="readme">
+        <strong>Why the separation matters.</strong> A student who has seen the exam paper in
+        advance will score well without understanding the subject. A model tested on its own
+        training data does exactly the same thing. Keeping <strong>eval</strong> sealed off is what
+        makes the reported accuracy trustworthy. If a model scores highly on <strong>train</strong>
+        but poorly on <strong>dev</strong>, it has memorised rather than learned &mdash; that gap is
+        called overfitting, and you can see it happening in the loss curve on the Results page.
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="shell">
+    <div class="section__head">
+      <h2>Honest limitations</h2>
+      <p>What this system does not do, stated plainly.</p>
+    </div>
+    <div class="grid grid--3">
+      <article class="card feature reveal">
+        <h3 style="font-size:1rem;">It needs a visible face</h3>
+        <p>The video model scores faces, not scenes. A clip with no detectable face cannot be judged.</p>
+      </article>
+      <article class="card feature reveal">
+        <h3 style="font-size:1rem;">Accuracy is dataset-bound</h3>
+        <p>The quoted figures are measured on held-out data from the same sources. Media from a different generator may score lower.</p>
+      </article>
+      <article class="card feature reveal">
+        <h3 style="font-size:1rem;">It is not evidence</h3>
+        <p>Deep Shield is a research project and a screening aid. It is not forensic proof and should not be treated as such.</p>
+      </article>
+    </div>
+  </div>
+</section>
+{% endblock %}

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Deep Shield | AI Deepfake Detection{% endblock %}
+
+{% block content %}
+<section class="hero">
+  <div class="shell">
+    <span class="hero__eyebrow"><i class="fa-solid fa-shield-halved"></i> Sir M. Visvesvaraya Institute of Technology</span>
+    <h1>Detect manipulated<br /><span class="hero__accent">audio and video</span></h1>
+    <p class="hero__lead">
+      Deep Shield analyses media frame by frame and clip by clip, then shows you the evidence
+      behind every verdict &mdash; not just a label.
+    </p>
+    <div class="hero__actions">
+      <a class="btn btn--primary" href="{{ url_for('video_page') }}"><i class="fa-solid fa-video"></i> Analyse a video</a>
+      <a class="btn btn--ghost" href="{{ url_for('audio_page') }}"><i class="fa-solid fa-microphone"></i> Analyse audio</a>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="shell">
+    <div class="grid grid--4">
+      <div class="card stat reveal">
+        <div class="stat__value">96.0%</div>
+        <div class="stat__label">Audio accuracy</div>
+        <div class="stat__note">2,637 held-out clips</div>
+      </div>
+      <div class="card stat reveal">
+        <div class="stat__value">88.2%</div>
+        <div class="stat__label">Video accuracy</div>
+        <div class="stat__note">119 held-out face crops</div>
+      </div>
+      <div class="card stat reveal">
+        <div class="stat__value">58,873</div>
+        <div class="stat__label">Media files</div>
+        <div class="stat__note">SceneFake + DFDV datasets</div>
+      </div>
+      <div class="card stat reveal">
+        <div class="stat__value">2</div>
+        <div class="stat__label">Model families</div>
+        <div class="stat__note">Random Forest + CNN ensemble</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="shell">
+    <div class="section__head">
+      <h2>How Deep Shield works</h2>
+      <p>Two independent detectors, each trained for the signals that give its medium away.</p>
+    </div>
+
+    <div class="grid grid--3">
+      <article class="card feature reveal">
+        <div class="feature__icon"><i class="fa-solid fa-wave-square"></i></div>
+        <h3>Audio pipeline</h3>
+        <p>
+          Every clip is reduced to 17 acoustic measurements &mdash; 13 MFCCs plus spectral centroid,
+          chroma, zero-crossing rate and RMSE. A Random Forest of 100 decision trees votes on
+          whether those measurements look natural.
+        </p>
+      </article>
+
+      <article class="card feature reveal">
+        <div class="feature__icon"><i class="fa-solid fa-clapperboard"></i></div>
+        <h3>Video pipeline</h3>
+        <p>
+          Twenty frames are sampled across the clip. MTCNN locates every face, and a ResNet50 +
+          EfficientNetB0 ensemble scores each one for the blending and texture artefacts that
+          face-swapping leaves behind.
+        </p>
+      </article>
+
+      <article class="card feature reveal">
+        <div class="feature__icon"><i class="fa-solid fa-list-check"></i></div>
+        <h3>Evidence, not verdicts</h3>
+        <p>
+          Each result shows how many faces were checked, how they split between authentic and
+          manipulated, the confidence behind each one, and exactly which rule produced the final
+          answer.
+        </p>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="shell">
+    <div class="card card--pad reveal" style="display:flex; align-items:center; justify-content:space-between; gap:24px; flex-wrap:wrap;">
+      <div>
+        <h3 style="font-size:1.2rem; margin-bottom:6px;">Think you can spot a deepfake?</h3>
+        <p style="color:var(--ink-2); font-size:0.95rem;">Take the 12-image challenge and compare your score with the model.</p>
+      </div>
+      <a class="btn btn--primary" href="{{ url_for('quiz') }}">Take the challenge</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

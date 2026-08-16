@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+{% block title %}Audio Detection | Deep Shield{% endblock %}
+
+{% block content %}
+<section class="page-head">
+  <div class="shell">
+    <h1>Audio <span class="hero__accent">analysis</span></h1>
+    <p>
+      Deep Shield reduces your clip to 17 acoustic measurements and puts them to a vote across
+      100 decision trees. Results usually arrive in a few seconds.
+    </p>
+  </div>
+</section>
+
+<section class="section">
+  <div class="shell">
+    <div class="uploader">
+      <div class="card card--pad">
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="file-input" accept="audio/wav,audio/mpeg,audio/flac,audio/ogg,audio/mp4" />
+          <div class="dropzone__icon"><i class="fa-solid fa-waveform-lines"></i><i class="fa-solid fa-microphone-lines"></i></div>
+          <div class="dropzone__title">Drop an audio clip here, or click to browse</div>
+          <div class="dropzone__hint">WAV, MP3, FLAC, M4A or OGG</div>
+        </div>
+
+        <div class="filechip" id="file-chip">
+          <i class="fa-solid fa-music" style="color:var(--brand-ink)"></i>
+          <span class="filechip__name" id="file-name"></span>
+          <span class="filechip__size" id="file-size"></span>
+        </div>
+
+        <audio id="preview" controls style="display:none; margin-top:16px; width:100%;"></audio>
+
+        <button class="btn btn--primary btn--block" id="analyse" type="button" style="margin-top:18px;">
+          <i class="fa-solid fa-magnifying-glass-chart"></i> Start analysis
+        </button>
+
+        <div class="alert" id="alert"></div>
+
+        <div class="progress" id="progress">
+          <div class="progress__head">
+            <span class="progress__stage" id="stage">Preparing</span>
+            <span class="progress__pct" id="pct">0%</span>
+          </div>
+          <div class="progress__track"><div class="progress__bar" id="bar"></div></div>
+          <div class="progress__steps">
+            <span class="pstep" data-at="3"><span class="pstep__dot"></span>Upload</span>
+            <span class="pstep" data-at="15"><span class="pstep__dot"></span>Waveform</span>
+            <span class="pstep" data-at="55"><span class="pstep__dot"></span>Features</span>
+            <span class="pstep" data-at="78"><span class="pstep__dot"></span>Forest vote</span>
+            <span class="pstep" data-at="92"><span class="pstep__dot"></span>Verdict</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="verdict" id="verdict">
+        <div class="verdict__top">
+          <span class="verdict__badge" id="verdict-badge"></span>
+          <span class="verdict__headline" id="verdict-headline"></span>
+        </div>
+        <p class="verdict__reason" id="verdict-reason"></p>
+
+        <div class="meter" id="vote-meter">
+          <div class="meter__head">
+            <span id="meter-fake"></span>
+            <span id="meter-real"></span>
+          </div>
+          <div class="meter__track">
+            <div class="meter__fake" id="meter-fake-bar"></div>
+            <div class="meter__real" id="meter-real-bar"></div>
+          </div>
+        </div>
+
+        <div class="evidence" id="evidence"></div>
+
+        <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">Measurements that drove this decision</h3>
+        <p style="font-size:0.85rem; color:var(--ink-3); margin-bottom:12px;">
+          The six acoustic features the model relies on most, with the value measured in your clip.
+        </p>
+        <div style="overflow-x:auto;">
+          <table class="split-table" id="contrib-table">
+            <thead>
+              <tr><th>Feature</th><th>What it captures</th><th>Model reliance</th><th>Your clip</th></tr>
+            </thead>
+            <tbody id="contrib-body"></tbody>
+          </table>
+        </div>
+
+        <div class="readme">
+          <strong>How to read this.</strong> A Random Forest is 100 separate decision trees, each
+          shown a slightly different slice of the training data. Every tree votes independently,
+          and the majority wins. A lopsided vote &mdash; say 95 to 5 &mdash; means the trees agree
+          strongly. A close vote means the clip sits near the boundary and the verdict is less
+          certain.
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  var preview = document.getElementById("preview");
+  var verdictBox = document.getElementById("verdict");
+
+  var FEATURE_MEANING = {
+    "Spectral Centroid": "Where the brightness of the sound sits",
+    Chroma: "Musical pitch content",
+    "Zero-Crossing Rate": "How often the waveform flips sign",
+    RMSE: "Overall loudness energy",
+  };
+
+  function meaningFor(name) {
+    if (FEATURE_MEANING[name]) return FEATURE_MEANING[name];
+    return "Shape of the vocal tract filter";
+  }
+
+  function evidenceItem(value, label) {
+    return '<div class="evidence__item"><div class="evidence__value">' + value +
+      '</div><div class="evidence__label">' + label + "</div></div>";
+  }
+
+  createAnalyser({
+    endpoint: "/api/analyze/audio",
+    inputId: "file-input",
+    dropzoneId: "dropzone",
+    chipId: "file-chip",
+    chipNameId: "file-name",
+    chipSizeId: "file-size",
+    submitId: "analyse",
+    progressId: "progress",
+    barId: "bar",
+    stageId: "stage",
+    pctId: "pct",
+    alertId: "alert",
+    onSelect: function (file) {
+      preview.src = URL.createObjectURL(file);
+      preview.style.display = "block";
+      verdictBox.classList.remove("is-on");
+    },
+    onResult: function (data) {
+      var fake = data.verdict === "Fake";
+      verdictBox.className = "verdict is-on " + (fake ? "verdict--fake" : "verdict--real");
+
+      document.getElementById("verdict-badge").innerHTML =
+        '<i class="fa-solid ' + (fake ? "fa-triangle-exclamation" : "fa-circle-check") + '"></i> ' +
+        (fake ? "SYNTHETIC" : "AUTHENTIC");
+      document.getElementById("verdict-headline").textContent = fake
+        ? "This clip appears to be AI-generated or manipulated."
+        : "This clip appears to be a genuine recording.";
+      document.getElementById("verdict-reason").textContent = data.reason;
+
+      var votes = data.votes;
+      if (votes) {
+        var fakeShare = (100 * votes.fake) / votes.total;
+        document.getElementById("meter-fake").textContent = votes.fake + " trees voted synthetic";
+        document.getElementById("meter-real").textContent = votes.real + " voted authentic";
+        document.getElementById("meter-fake-bar").style.width = fakeShare + "%";
+        document.getElementById("meter-real-bar").style.width = 100 - fakeShare + "%";
+        document.getElementById("vote-meter").style.display = "block";
+      } else {
+        document.getElementById("vote-meter").style.display = "none";
+      }
+
+      document.getElementById("evidence").innerHTML =
+        evidenceItem((data.confidence !== null ? data.confidence + "%" : "n/a"), "Model confidence") +
+        evidenceItem(votes ? votes.total : 100, "Decision trees") +
+        evidenceItem(data.featureCount, "Acoustic features") +
+        evidenceItem(votes ? Math.max(votes.fake, votes.real) + " / " + votes.total : "n/a", "Majority size");
+
+      document.getElementById("contrib-body").innerHTML = data.contributions
+        .map(function (row) {
+          return "<tr><td>" + row.name + "</td><td>" + meaningFor(row.name) +
+            "</td><td>" + row.importance + "%</td><td>" + row.value + "</td></tr>";
+        })
+        .join("");
+
+      verdictBox.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+  });
+</script>
+{% endblock %}
