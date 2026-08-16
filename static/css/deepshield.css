@@ -902,8 +902,152 @@ p {
   margin-bottom: 6px;
 }
 
+.chart-flow {
+  columns: 2;
+  column-gap: 20px;
+}
+
+.chart-flow > * {
+  width: 100%;
+  margin: 0 0 20px;
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+}
+
+@media (max-width: 900px) {
+  .chart-flow {
+    columns: 1;
+  }
+}
+
+.tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border: 1px solid var(--line);
+  border-bottom: 0;
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  background: var(--surface-2);
+  color: var(--ink-3);
+  font-family: inherit;
+  font-size: 0.92rem;
+  font-weight: 560;
+  cursor: pointer;
+  transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.tab:hover {
+  color: var(--ink-2);
+}
+
+.tab.is-active {
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.field {
+  display: block;
+}
+
+.field__label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 560;
+  color: var(--ink-2);
+  margin-bottom: 8px;
+}
+
+.field__input {
+  width: 100%;
+  padding: 13px 15px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line-strong);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 0.95rem;
+  transition: border-color 0.15s ease;
+}
+
+.field__input:focus {
+  outline: none;
+  border-color: var(--brand-ink);
+}
+
+.field__hint {
+  margin-top: 10px;
+  font-size: 0.82rem;
+  color: var(--ink-3);
+}
+
+.tracks {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 14px;
+  margin-top: 22px;
+}
+
+.track {
+  padding: 16px 18px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.track__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 10px;
+}
+
+.track__verdict {
+  font-size: 1.2rem;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+}
+
+.track--fake .track__verdict {
+  color: var(--bad);
+}
+
+.track--real .track__verdict {
+  color: var(--ok);
+}
+
+.track__detail {
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--ink-3);
+}
+
+.track__empty {
+  font-size: 0.85rem;
+  color: var(--ink-3);
+}
+
 .preview {
-  margin-top: 16px;
+  margin-top: 20px;
+}
+
+.preview__note {
+  margin-top: 8px;
+  font-size: 0.79rem;
+  color: var(--ink-3);
+  text-align: center;
 }
 
 .preview[hidden] {

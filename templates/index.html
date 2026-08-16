@@ -31,10 +31,7 @@
 
         <div class="preview" id="preview-wrap" hidden>
           <video id="preview" controls playsinline></video>
-          <figure class="preview__poster" id="poster-wrap" hidden>
-            <img id="poster" alt="First frame of the selected video" />
-            <figcaption id="poster-note"></figcaption>
-          </figure>
+          <p class="preview__note" id="preview-note"></p>
         </div>
 
         <button class="btn btn--primary btn--block" id="analyse" type="button" style="margin-top:18px;">
@@ -110,54 +107,47 @@
 <script>
   var preview = document.getElementById("preview");
   var previewWrap = document.getElementById("preview-wrap");
-  var posterWrap = document.getElementById("poster-wrap");
-  var poster = document.getElementById("poster");
-  var posterNote = document.getElementById("poster-note");
+  var previewNote = document.getElementById("preview-note");
   var verdictBox = document.getElementById("verdict");
   var framesBox = document.getElementById("frames");
   var framesGrid = document.getElementById("frames-grid");
 
-  function serverPoster(file) {
+  function convertForPlayback(file) {
+    previewNote.textContent = "This clip uses a codec browsers cannot play — converting it…";
     var payload = new FormData();
     payload.append("file", file);
-    posterNote.textContent = "Building preview…";
-    posterWrap.hidden = false;
     fetch("/api/preview", { method: "POST", body: payload })
       .then(function (r) {
         return r.json();
       })
       .then(function (data) {
-        if (!data.poster) throw new Error(data.error || "No preview available.");
-        poster.src = data.poster;
-        posterNote.textContent =
-          "This clip uses a codec browsers cannot play, so here is its first frame · " +
-          data.resolution +
-          " · " +
-          data.duration +
-          "s";
+        if (!data.url) throw new Error(data.error || "Preview unavailable.");
+        preview.onerror = null;
+        preview.onloadedmetadata = null;
+        preview.src = data.url;
+        preview.load();
+        previewNote.textContent =
+          "Converted from " + (data.sourceVideoCodec || "an unsupported codec") +
+          " to H.264 for playback · " + data.resolution + " · " + data.duration + "s";
       })
-      .catch(function () {
-        posterWrap.hidden = true;
+      .catch(function (err) {
+        previewNote.textContent = err.message;
       });
   }
 
   function showPreview(file) {
     if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
-    posterWrap.hidden = true;
-    poster.removeAttribute("src");
     previewWrap.hidden = false;
-    preview.hidden = false;
+    previewNote.textContent = "";
 
     var url = URL.createObjectURL(file);
     preview.dataset.objectUrl = url;
 
     preview.onerror = function () {
-      preview.hidden = true;
-      serverPoster(file);
+      convertForPlayback(file);
     };
     preview.onloadedmetadata = function () {
-      preview.hidden = false;
-      posterWrap.hidden = true;
+      previewNote.textContent = "";
     };
 
     preview.src = url;

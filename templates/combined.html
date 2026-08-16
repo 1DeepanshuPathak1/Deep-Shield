@@ -1,0 +1,340 @@
+{% extends "base.html" %}
+{% block title %}Full Analysis | Deep Shield{% endblock %}
+
+{% block content %}
+<section class="page-head centered">
+  <div class="shell">
+    <h1>Full <span class="hero__accent">analysis</span></h1>
+    <p>
+      Check a clip's picture and its sound at the same time. Upload a file, or paste a YouTube
+      link and Deep Shield will capture {{ clip }} seconds from it &mdash; live streams included.
+    </p>
+  </div>
+</section>
+
+<section class="section" style="padding-top:24px;">
+  <div class="shell">
+    <div class="uploader">
+      <div class="tabs" role="tablist">
+        <button class="tab is-active" id="tab-upload" role="tab" aria-selected="true" aria-controls="panel-upload" type="button">
+          <i class="fa-solid fa-file-arrow-up"></i> Upload a file
+        </button>
+        <button class="tab" id="tab-link" role="tab" aria-selected="false" aria-controls="panel-link" type="button">
+          <i class="fa-brands fa-youtube"></i> YouTube link
+        </button>
+      </div>
+
+      <div class="card card--pad" style="border-top-left-radius:0; border-top-right-radius:0;">
+        <div id="panel-upload" role="tabpanel">
+          <div class="dropzone" id="dropzone">
+            <input type="file" id="file-input" accept="video/mp4,video/x-msvideo,video/quicktime,video/webm,video/x-matroska" />
+            <div class="dropzone__icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+            <div class="dropzone__title">Drop a video here, or click to browse</div>
+            <div class="dropzone__hint">MP4, AVI, MOV, MKV or WEBM &middot; both tracks are checked</div>
+          </div>
+
+          <div class="filechip" id="file-chip">
+            <i class="fa-solid fa-film" style="color:var(--brand-ink)"></i>
+            <span class="filechip__name" id="file-name"></span>
+            <span class="filechip__size" id="file-size"></span>
+          </div>
+
+          <button class="btn btn--primary btn--block" id="analyse" type="button" style="margin-top:18px;">
+            <i class="fa-solid fa-play"></i> Analyse both tracks
+          </button>
+        </div>
+
+        <div id="panel-link" role="tabpanel" hidden>
+          <label class="field">
+            <span class="field__label">YouTube URL</span>
+            <input class="field__input" id="yt-url" type="url" placeholder="https://www.youtube.com/watch?v=..." />
+          </label>
+          <p class="field__hint">
+            Works with normal videos and live streams. Deep Shield captures the first
+            {{ clip }} seconds, converts it, and checks both tracks.
+          </p>
+          <button class="btn btn--primary btn--block" id="analyse-link" type="button" style="margin-top:16px;">
+            <i class="fa-solid fa-satellite-dish"></i> Fetch and analyse
+          </button>
+        </div>
+
+        <div class="alert" id="alert"></div>
+
+        <div class="progress" id="progress">
+          <div class="progress__head">
+            <span class="progress__stage" id="stage">Preparing</span>
+            <span class="progress__pct" id="pct">0%</span>
+          </div>
+          <div class="progress__track"><div class="progress__bar" id="bar"></div></div>
+          <div class="progress__steps">
+            <span class="pstep" data-at="4"><span class="pstep__dot"></span>Fetch</span>
+            <span class="pstep" data-at="14"><span class="pstep__dot"></span>Convert</span>
+            <span class="pstep" data-at="22"><span class="pstep__dot"></span>Audio</span>
+            <span class="pstep" data-at="40"><span class="pstep__dot"></span>Faces</span>
+            <span class="pstep" data-at="95"><span class="pstep__dot"></span>Verdict</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="verdict" id="verdict">
+        <div class="verdict__top">
+          <span class="verdict__badge" id="verdict-badge"></span>
+          <span class="verdict__headline" id="verdict-headline"></span>
+        </div>
+        <p class="verdict__reason" id="verdict-reason"></p>
+
+        <div class="tracks" id="tracks"></div>
+
+        <div class="preview" id="preview-wrap" hidden>
+          <video id="preview" controls playsinline></video>
+          <p class="preview__note" id="preview-note"></p>
+        </div>
+
+        <div class="verdict__foot">
+          <button class="info-btn" type="button" aria-expanded="false" aria-controls="combined-info" aria-label="How to read this result">
+            <i class="fa-solid fa-info"></i>
+          </button>
+          <span class="verdict__foot-label">How this verdict was reached</span>
+        </div>
+
+        <div class="readme" id="combined-info" hidden>
+          The two detectors never see each other's answer. The picture is judged by scoring every
+          face across 20 sampled frames; the sound is judged by measuring 17 acoustic properties
+          and putting them to a vote across 100 decision trees. When both agree, confidence is
+          high. When only one flags, that usually means a partial edit &mdash; a real recording
+          with a swapped face, or genuine footage given a cloned voice.
+        </div>
+      </div>
+
+      <div class="frames" id="frames" style="display:none;">
+        <div class="section__head">
+          <h2 style="font-size:1.35rem;">Frame-by-frame evidence</h2>
+          <p style="font-size:0.93rem;">Each thumbnail is a sampled frame with its own verdict, timestamped to where it occurs.</p>
+        </div>
+        <div class="frames__grid" id="frames-grid"></div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  var alertBox = document.getElementById("alert");
+  var progress = document.getElementById("progress");
+  var bar = document.getElementById("bar");
+  var stage = document.getElementById("stage");
+  var pct = document.getElementById("pct");
+  var verdictBox = document.getElementById("verdict");
+  var tracksBox = document.getElementById("tracks");
+  var framesBox = document.getElementById("frames");
+  var framesGrid = document.getElementById("frames-grid");
+  var previewWrap = document.getElementById("preview-wrap");
+  var preview = document.getElementById("preview");
+  var previewNote = document.getElementById("preview-note");
+  var steps = Array.prototype.slice.call(progress.querySelectorAll(".pstep"));
+  var linkButton = document.getElementById("analyse-link");
+  var linkLabel = linkButton.innerHTML;
+
+  document.getElementById("tab-upload").addEventListener("click", function () {
+    switchTab("upload");
+  });
+  document.getElementById("tab-link").addEventListener("click", function () {
+    switchTab("link");
+  });
+
+  function switchTab(which) {
+    var upload = which === "upload";
+    document.getElementById("tab-upload").classList.toggle("is-active", upload);
+    document.getElementById("tab-link").classList.toggle("is-active", !upload);
+    document.getElementById("tab-upload").setAttribute("aria-selected", upload);
+    document.getElementById("tab-link").setAttribute("aria-selected", !upload);
+    document.getElementById("panel-upload").hidden = !upload;
+    document.getElementById("panel-link").hidden = upload;
+  }
+
+  function showError(message) {
+    alertBox.textContent = message;
+    alertBox.classList.add("is-on");
+  }
+
+  function markSteps(value) {
+    steps.forEach(function (el) {
+      var at = Number(el.getAttribute("data-at") || 0);
+      el.classList.remove("is-active", "is-done");
+      if (value >= at + 20) el.classList.add("is-done");
+      else if (value >= at) el.classList.add("is-active");
+    });
+  }
+
+  function setProgress(value, text) {
+    bar.style.width = Math.max(2, value) + "%";
+    pct.textContent = Math.round(value) + "%";
+    if (text) stage.textContent = text;
+    markSteps(value);
+  }
+
+  function trackCard(title, icon, data, kind) {
+    if (!data) {
+      return '<div class="track track--none"><div class="track__head"><i class="fa-solid ' + icon +
+        '"></i> ' + title + '</div><p class="track__empty">No ' + kind + ' track was found in this file.</p></div>';
+    }
+    var fake = data.verdict === "Fake";
+    var detail = kind === "audio"
+      ? (data.votes ? data.votes.fake + " of " + data.votes.total + " trees said synthetic" : "")
+      : data.fakeFaces + " of " + data.analysedFaces + " faces looked manipulated";
+    return '<div class="track ' + (fake ? "track--fake" : "track--real") + '">' +
+      '<div class="track__head"><i class="fa-solid ' + icon + '"></i> ' + title + '</div>' +
+      '<div class="track__verdict">' + (fake ? "Manipulated" : "Authentic") + "</div>" +
+      '<div class="track__detail">' + detail + "</div></div>";
+  }
+
+  function evidenceItem(value, label) {
+    return '<div class="evidence__item"><div class="evidence__value">' + value +
+      '</div><div class="evidence__label">' + label + "</div></div>";
+  }
+
+  function render(data) {
+    var combined = data.combined;
+    var fake = combined.verdict === "Fake";
+    var unknown = combined.verdict === "Unknown";
+    verdictBox.className = "verdict is-on " + (unknown ? "" : fake ? "verdict--fake" : "verdict--real");
+
+    document.getElementById("verdict-badge").innerHTML =
+      '<i class="fa-solid ' + (fake ? "fa-triangle-exclamation" : unknown ? "fa-circle-question" : "fa-circle-check") +
+      '"></i> ' + combined.verdict.toUpperCase();
+    document.getElementById("verdict-headline").textContent = combined.headline;
+    document.getElementById("verdict-reason").textContent = combined.reason;
+
+    var source = data.source
+      ? '<div class="track track--source"><div class="track__head"><i class="fa-brands fa-youtube"></i> Source</div>' +
+        '<div class="track__verdict" style="font-size:0.95rem;">' + data.source.title + "</div>" +
+        '<div class="track__detail">' + data.source.channel +
+        (data.source.isLive ? " · live" : "") + " · first " + data.source.clipSeconds + "s</div></div>"
+      : "";
+
+    tracksBox.innerHTML =
+      trackCard("Picture", "fa-clapperboard", data.video, "video") +
+      trackCard("Sound", "fa-wave-square", data.audio, "audio") +
+      source;
+
+    if (data.preview && data.preview.url) {
+      previewWrap.hidden = false;
+      preview.src = data.preview.url;
+      preview.load();
+      previewNote.textContent = data.preview.converted
+        ? "Converted from " + data.preview.sourceVideoCodec + " to H.264 for playback"
+        : "";
+    }
+
+    if (data.video && data.video.frames && data.video.frames.length) {
+      framesGrid.innerHTML = data.video.frames
+        .map(function (frame) {
+          var cls = frame.label === "Fake" ? "tag--fake" : "tag--real";
+          return '<figure class="frame"><img class="frame__img" loading="lazy" src="' + frame.image +
+            '" alt="Frame at ' + frame.timestamp + ' seconds" /><figcaption class="frame__meta">' +
+            '<span class="tag ' + cls + '">' + frame.label.toUpperCase() + " " + frame.confidence +
+            '%</span><span class="frame__time">' + frame.timestamp + "s</span></figcaption></figure>";
+        })
+        .join("");
+      framesBox.style.display = "block";
+    } else {
+      framesBox.style.display = "none";
+    }
+
+    verdictBox.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function poll(jobId, done) {
+    var timer = setInterval(function () {
+      fetch("/api/job/" + jobId)
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (job) {
+          setProgress(job.progress || 0, job.stage);
+          if (job.status === "done") {
+            clearInterval(timer);
+            setProgress(100, "Complete");
+            done();
+            render(job.result);
+          } else if (job.status === "error") {
+            clearInterval(timer);
+            progress.classList.remove("is-on");
+            done();
+            showError(job.error || "Analysis failed.");
+          }
+        })
+        .catch(function () {
+          clearInterval(timer);
+          progress.classList.remove("is-on");
+          done();
+          showError("Lost connection to the analysis service.");
+        });
+    }, 700);
+  }
+
+  createAnalyser({
+    endpoint: "/api/analyze/combined",
+    inputId: "file-input",
+    dropzoneId: "dropzone",
+    chipId: "file-chip",
+    chipNameId: "file-name",
+    chipSizeId: "file-size",
+    submitId: "analyse",
+    progressId: "progress",
+    barId: "bar",
+    stageId: "stage",
+    pctId: "pct",
+    alertId: "alert",
+    onSelect: function () {
+      verdictBox.classList.remove("is-on");
+      framesBox.style.display = "none";
+      previewWrap.hidden = true;
+    },
+    onResult: render,
+  });
+
+  linkButton.addEventListener("click", function () {
+    var url = document.getElementById("yt-url").value.trim();
+    if (!url) {
+      showError("Paste a YouTube link first.");
+      return;
+    }
+    alertBox.classList.remove("is-on");
+    verdictBox.classList.remove("is-on");
+    framesBox.style.display = "none";
+    previewWrap.hidden = true;
+
+    linkButton.disabled = true;
+    linkButton.innerHTML = '<span class="spinner"></span> Fetching…';
+    progress.classList.add("is-on");
+    setProgress(3, "Contacting YouTube");
+
+    function done() {
+      linkButton.disabled = false;
+      linkButton.innerHTML = linkLabel;
+    }
+
+    fetch("/api/analyze/youtube", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url: url }),
+    })
+      .then(function (r) {
+        return r.json().then(function (body) {
+          return { ok: r.ok, body: body };
+        });
+      })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.body.error || "That link was rejected.");
+        poll(res.body.jobId, done);
+      })
+      .catch(function (err) {
+        progress.classList.remove("is-on");
+        done();
+        showError(err.message);
+      });
+  });
+</script>
+{% endblock %}

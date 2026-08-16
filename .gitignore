@@ -10,6 +10,8 @@ __pycache__/
 
 static/uploads/*
 !static/uploads/.gitkeep
+static/previews/*
+!static/previews/.gitkeep
 
 .ipynb_checkpoints/
 *.zip
