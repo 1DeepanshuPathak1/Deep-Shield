@@ -2,12 +2,12 @@
 {% block title %}Video Detection | Deep Shield{% endblock %}
 
 {% block content %}
-<section class="page-head">
+<section class="page-head centered">
   <div class="shell">
     <h1>Video <span class="hero__accent">analysis</span></h1>
     <p>
       Deep Shield samples 20 frames across your clip, finds every face, and scores each one.
-      A typical clip takes 30&ndash;60 seconds &mdash; you will see each stage as it happens.
+      Most clips finish in 10&ndash;20 seconds, and you will see each stage as it happens.
     </p>
   </div>
 </section>
@@ -29,7 +29,13 @@
           <span class="filechip__size" id="file-size"></span>
         </div>
 
-        <video id="preview" controls playsinline style="display:none; margin-top:16px; border-radius:12px; width:100%; background:#000;"></video>
+        <div class="preview" id="preview-wrap" hidden>
+          <video id="preview" controls playsinline></video>
+          <figure class="preview__poster" id="poster-wrap" hidden>
+            <img id="poster" alt="First frame of the selected video" />
+            <figcaption id="poster-note"></figcaption>
+          </figure>
+        </div>
 
         <button class="btn btn--primary btn--block" id="analyse" type="button" style="margin-top:18px;">
           <i class="fa-solid fa-play"></i> Start analysis
@@ -73,12 +79,18 @@
 
         <div class="evidence" id="evidence"></div>
 
-        <div class="readme">
-          <strong>How to read this.</strong> Deep Shield does not judge the video as a whole. It
-          scores every face it finds, one at a time. The bar above shows how those individual
-          faces split. A clip is flagged as manipulated once at least
-          <strong id="threshold-note">5</strong> faces look synthetic, because a genuine video
-          almost never produces that many false alarms.
+        <div class="verdict__foot">
+          <button class="info-btn" type="button" aria-expanded="false" aria-controls="video-info" aria-label="How to read this result">
+            <i class="fa-solid fa-info"></i>
+          </button>
+          <span class="verdict__foot-label">How this verdict was reached</span>
+        </div>
+
+        <div class="readme" id="video-info" hidden>
+          Deep Shield does not judge the video as a whole. It scores every face it finds, one at a
+          time. The bar above shows how those individual faces split. A clip is flagged as
+          manipulated once at least <strong id="threshold-note">5</strong> faces look synthetic,
+          because a genuine video almost never produces that many false alarms.
         </div>
       </div>
 
@@ -97,9 +109,60 @@
 {% block scripts %}
 <script>
   var preview = document.getElementById("preview");
+  var previewWrap = document.getElementById("preview-wrap");
+  var posterWrap = document.getElementById("poster-wrap");
+  var poster = document.getElementById("poster");
+  var posterNote = document.getElementById("poster-note");
   var verdictBox = document.getElementById("verdict");
   var framesBox = document.getElementById("frames");
   var framesGrid = document.getElementById("frames-grid");
+
+  function serverPoster(file) {
+    var payload = new FormData();
+    payload.append("file", file);
+    posterNote.textContent = "Building preview…";
+    posterWrap.hidden = false;
+    fetch("/api/preview", { method: "POST", body: payload })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data.poster) throw new Error(data.error || "No preview available.");
+        poster.src = data.poster;
+        posterNote.textContent =
+          "This clip uses a codec browsers cannot play, so here is its first frame · " +
+          data.resolution +
+          " · " +
+          data.duration +
+          "s";
+      })
+      .catch(function () {
+        posterWrap.hidden = true;
+      });
+  }
+
+  function showPreview(file) {
+    if (preview.dataset.objectUrl) URL.revokeObjectURL(preview.dataset.objectUrl);
+    posterWrap.hidden = true;
+    poster.removeAttribute("src");
+    previewWrap.hidden = false;
+    preview.hidden = false;
+
+    var url = URL.createObjectURL(file);
+    preview.dataset.objectUrl = url;
+
+    preview.onerror = function () {
+      preview.hidden = true;
+      serverPoster(file);
+    };
+    preview.onloadedmetadata = function () {
+      preview.hidden = false;
+      posterWrap.hidden = true;
+    };
+
+    preview.src = url;
+    preview.load();
+  }
 
   function evidenceItem(value, label) {
     return '<div class="evidence__item"><div class="evidence__value">' + value +
@@ -120,10 +183,9 @@
     pctId: "pct",
     alertId: "alert",
     onSelect: function (file) {
-      preview.src = URL.createObjectURL(file);
-      preview.style.display = "block";
       verdictBox.classList.remove("is-on");
       framesBox.style.display = "none";
+      showPreview(file);
     },
     onResult: function (data) {
       var fake = data.verdict === "Fake";

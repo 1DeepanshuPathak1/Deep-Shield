@@ -61,6 +61,16 @@
     }
   }
 
+  document.addEventListener("click", function (e) {
+    var button = e.target.closest(".info-btn");
+    if (!button) return;
+    var panel = document.getElementById(button.getAttribute("aria-controls"));
+    if (!panel) return;
+    var open = button.getAttribute("aria-expanded") === "true";
+    button.setAttribute("aria-expanded", open ? "false" : "true");
+    panel.hidden = open;
+  });
+
   if (document.querySelector("[data-tip]")) {
     var tip = document.createElement("div");
     tip.id = "viz-tip";

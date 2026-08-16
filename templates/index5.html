@@ -2,7 +2,7 @@
 {% block title %}Can You Tell? | Deep Shield{% endblock %}
 
 {% block content %}
-<section class="page-head">
+<section class="page-head centered">
   <div class="shell">
     <h1>Can you tell what's <span class="hero__accent">real</span>?</h1>
     <p>
@@ -22,11 +22,11 @@
           <input type="hidden" name="image" value="{{ image }}" />
           <div class="quiz__choices">
             <label class="choice">
-              <input type="radio" name="response" value="real" required />
+              <input type="radio" name="response_{{ loop.index0 }}" value="real" required />
               <span>Real</span>
             </label>
             <label class="choice">
-              <input type="radio" name="response" value="fake" />
+              <input type="radio" name="response_{{ loop.index0 }}" value="fake" />
               <span>Fake</span>
             </label>
           </div>

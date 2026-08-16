@@ -382,6 +382,51 @@ def api_analyze_audio():
     return jsonify({"jobId": job_id})
 
 
+@app.route("/api/preview", methods=["POST"])
+def api_preview():
+    upload = request.files.get("file")
+    if not upload or upload.filename == "":
+        return jsonify({"error": "No file was provided."}), 400
+
+    temp_path = os.path.join(
+        app.config["UPLOAD_FOLDER"], f"poster_{uuid.uuid4().hex}"
+    )
+    upload.save(temp_path)
+    try:
+        capture = cv2.VideoCapture(temp_path)
+        if not capture.isOpened():
+            return jsonify({"error": "The video could not be decoded."}), 415
+
+        total = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
+        fps = capture.get(cv2.CAP_PROP_FPS) or 25.0
+        capture.set(cv2.CAP_PROP_POS_FRAMES, max(0, total // 10))
+        ok, frame = capture.read()
+        if not ok:
+            capture.set(cv2.CAP_PROP_POS_FRAMES, 0)
+            ok, frame = capture.read()
+        width = int(capture.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        capture.release()
+
+        if not ok:
+            return jsonify({"error": "No readable frames were found."}), 415
+
+        return jsonify(
+            {
+                "poster": encode_jpeg(frame),
+                "resolution": f"{width}x{height}",
+                "duration": round(total / fps, 1) if fps else None,
+                "frames": total,
+            }
+        )
+    finally:
+        if os.path.exists(temp_path):
+            try:
+                os.remove(temp_path)
+            except OSError:
+                pass
+
+
 @app.route("/api/job/<job_id>")
 def api_job(job_id):
     job = read_job(job_id)
@@ -411,11 +456,11 @@ def load_quiz_images():
 @app.route("/index5", methods=["GET", "POST"])
 def quiz():
     if request.method == "POST":
-        responses = request.form.getlist("response")
         images = request.form.getlist("image")
         results = []
         correct = 0
-        for path, answer in zip(images, responses):
+        for position, path in enumerate(images):
+            answer = request.form.get(f"response_{position}")
             truth = "fake" if "/fake/" in path else "real"
             is_correct = truth == answer
             correct += is_correct

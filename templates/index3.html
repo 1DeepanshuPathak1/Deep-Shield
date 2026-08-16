@@ -2,7 +2,7 @@
 {% block title %}Audio Detection | Deep Shield{% endblock %}
 
 {% block content %}
-<section class="page-head">
+<section class="page-head centered">
   <div class="shell">
     <h1>Audio <span class="hero__accent">analysis</span></h1>
     <p>
@@ -18,7 +18,7 @@
       <div class="card card--pad">
         <div class="dropzone" id="dropzone">
           <input type="file" id="file-input" accept="audio/wav,audio/mpeg,audio/flac,audio/ogg,audio/mp4" />
-          <div class="dropzone__icon"><i class="fa-solid fa-waveform-lines"></i><i class="fa-solid fa-microphone-lines"></i></div>
+          <div class="dropzone__icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
           <div class="dropzone__title">Drop an audio clip here, or click to browse</div>
           <div class="dropzone__hint">WAV, MP3, FLAC, M4A or OGG</div>
         </div>
@@ -86,12 +86,18 @@
           </table>
         </div>
 
-        <div class="readme">
-          <strong>How to read this.</strong> A Random Forest is 100 separate decision trees, each
-          shown a slightly different slice of the training data. Every tree votes independently,
-          and the majority wins. A lopsided vote &mdash; say 95 to 5 &mdash; means the trees agree
-          strongly. A close vote means the clip sits near the boundary and the verdict is less
-          certain.
+        <div class="verdict__foot">
+          <button class="info-btn" type="button" aria-expanded="false" aria-controls="audio-info" aria-label="How to read this result">
+            <i class="fa-solid fa-info"></i>
+          </button>
+          <span class="verdict__foot-label">How this verdict was reached</span>
+        </div>
+
+        <div class="readme" id="audio-info" hidden>
+          A Random Forest is 100 separate decision trees, each shown a slightly different slice of
+          the training data. Every tree votes independently, and the majority wins. A lopsided vote
+          &mdash; say 95 to 5 &mdash; means the trees agree strongly. A close vote means the clip
+          sits near the boundary and the verdict is less certain.
         </div>
       </div>
     </div>
