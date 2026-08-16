@@ -85,6 +85,21 @@
 
         <div class="tracks" id="tracks"></div>
 
+        <div class="signals" id="signals"></div>
+
+        <div class="feedback" id="feedback">
+          <div class="feedback__question" id="feedback-question">Was this verdict correct?</div>
+          <div class="feedback__actions" id="feedback-actions">
+            <button class="fb-btn fb-btn--yes" type="button" data-correct="1">
+              <i class="fa-solid fa-thumbs-up"></i> Yes, correct
+            </button>
+            <button class="fb-btn fb-btn--no" type="button" data-correct="0">
+              <i class="fa-solid fa-thumbs-down"></i> No, it got this wrong
+            </button>
+          </div>
+          <p class="feedback__thanks" id="feedback-thanks" hidden></p>
+        </div>
+
         <div class="preview" id="preview-wrap" hidden>
           <video id="preview" controls playsinline></video>
           <p class="preview__note" id="preview-note"></p>
@@ -98,11 +113,13 @@
         </div>
 
         <div class="readme" id="combined-info" hidden>
-          The two detectors never see each other's answer. The picture is judged by scoring every
-          face across 20 sampled frames; the sound is judged by measuring 17 acoustic properties
-          and putting them to a vote across 100 decision trees. When both agree, confidence is
-          high. When only one flags, that usually means a partial edit &mdash; a real recording
-          with a swapped face, or genuine footage given a cloned voice.
+          Three independent checks run, and none sees the others' answer. <strong>Face swapping</strong>
+          scores each face across 20 sampled frames for blending artefacts. <strong>AI generation</strong>
+          ignores faces and measures the texture, sensor noise and frequency signature of the footage
+          itself &mdash; this is what catches a fully generated scene, which has no face to swap.
+          <strong>Audio</strong> measures 17 acoustic properties and puts them to a vote across 100
+          decision trees. Agreement between checks raises confidence; a single flag usually means a
+          partial edit, such as real footage given a cloned voice.
         </div>
       </div>
 
@@ -194,7 +211,84 @@
       '</div><div class="evidence__label">' + label + "</div></div>";
   }
 
-  function render(data) {
+  function signalCard(title, icon, verdict, detail) {
+    var cls = verdict === "Fake" ? "signal--fake" : verdict === "Real" ? "signal--real" : "signal--off";
+    var text = verdict === "Fake" ? "Detected" : verdict === "Real" ? "Not detected" : "Not applicable";
+    return '<div class="signal ' + cls + '"><div class="signal__head"><i class="fa-solid ' + icon +
+      '"></i> ' + title + '</div><div class="signal__verdict">' + text +
+      '</div><div class="signal__detail">' + detail + "</div></div>";
+  }
+
+  var currentJobId = null;
+
+  document.getElementById("feedback-actions").addEventListener("click", function (e) {
+    var button = e.target.closest(".fb-btn");
+    if (!button) return;
+    var correct = button.getAttribute("data-correct") === "1";
+    Array.prototype.forEach.call(
+      document.querySelectorAll("#feedback-actions .fb-btn"),
+      function (b) { b.disabled = true; }
+    );
+    fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId: currentJobId, correct: correct, kind: "combined" }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var thanks = document.getElementById("feedback-thanks");
+        var st = data.stats || {};
+        var msg = correct
+          ? "Thanks — logged as correct."
+          : "Thanks — logged as a miss. This is the signal the model learns from.";
+        if (data.retrained) {
+          msg += " <strong>The model just retrained</strong> on " + data.retrained.samples + " samples.";
+        } else if (st.untilRetrain) {
+          msg += " " + st.untilRetrain + " more before the next retrain.";
+        }
+        if (st.total) {
+          msg += " You have rated " + st.total + " results, agreeing with " + st.agreement + "%.";
+        }
+        thanks.innerHTML = msg;
+        thanks.hidden = false;
+        document.getElementById("feedback-actions").hidden = true;
+        document.getElementById("feedback-question").hidden = true;
+      })
+      .catch(function () {
+        var thanks = document.getElementById("feedback-thanks");
+        thanks.textContent = "Could not save that feedback.";
+        thanks.hidden = false;
+      });
+  });
+
+  function resetFeedback() {
+    document.getElementById("feedback-actions").hidden = false;
+    document.getElementById("feedback-question").hidden = false;
+    document.getElementById("feedback-thanks").hidden = true;
+    Array.prototype.forEach.call(
+      document.querySelectorAll("#feedback-actions .fb-btn"),
+      function (b) { b.disabled = false; }
+    );
+  }
+
+  function render(data, jobId) {
+    if (jobId) currentJobId = jobId;
+    resetFeedback();
+
+    var video = data.video;
+    var syn = video ? video.synthetic : null;
+    var faceDetail = !video
+      ? "No visual track was analysed."
+      : video.faceVerdict === null
+        ? "No face was found to check."
+        : video.fakeFaces + " of " + video.analysedFaces + " faces showed swap artefacts.";
+    var genDetail = syn
+      ? syn.confidence + "% confident, from " + syn.framesChecked + " frames of texture, noise and frequency analysis."
+      : "The generation model was unavailable for this run.";
+    document.getElementById("signals").innerHTML =
+      signalCard("Face swapping", "fa-user-pen", video ? video.faceVerdict : null, faceDetail) +
+      signalCard("AI generation", "fa-wand-magic-sparkles", syn ? syn.verdict : null, genDetail);
+
     var combined = data.combined;
     var fake = combined.verdict === "Fake";
     var unknown = combined.verdict === "Unknown";
@@ -292,7 +386,7 @@
       framesBox.style.display = "none";
       previewWrap.hidden = true;
     },
-    onResult: render,
+    onResult: function (data, jobId) { render(data, jobId); },
   });
 
   linkButton.addEventListener("click", function () {

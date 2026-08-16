@@ -459,3 +459,6 @@ zict==3.0.0
 zipp==3.17.0
 yt-dlp
 mtcnn
+transformers
+torch
+timm

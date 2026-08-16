@@ -210,7 +210,7 @@ function createAnalyser(options) {
             clearInterval(polling);
             setProgress(100, "Complete");
             setBusy(false);
-            options.onResult(job.result);
+            options.onResult(job.result, jobId);
           } else if (job.status === "error") {
             clearInterval(polling);
             progress.classList.remove("is-on");

@@ -7,6 +7,7 @@ __pycache__/
 
 *.h5
 *.pkl
+!fusion_model.pkl
 
 static/uploads/*
 !static/uploads/.gitkeep
@@ -20,3 +21,6 @@ static/previews/*
 Thumbs.db
 .vscode/
 .idea/
+feedback.db
+fusion_trainset.npz
+_eval/

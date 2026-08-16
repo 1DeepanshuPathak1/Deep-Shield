@@ -74,7 +74,22 @@
           </div>
         </div>
 
+        <div class="signals" id="signals"></div>
+
         <div class="evidence" id="evidence"></div>
+
+        <div class="feedback" id="feedback">
+          <div class="feedback__question" id="feedback-question">Was this verdict correct?</div>
+          <div class="feedback__actions" id="feedback-actions">
+            <button class="fb-btn fb-btn--yes" type="button" data-correct="1">
+              <i class="fa-solid fa-thumbs-up"></i> Yes, correct
+            </button>
+            <button class="fb-btn fb-btn--no" type="button" data-correct="0">
+              <i class="fa-solid fa-thumbs-down"></i> No, it got this wrong
+            </button>
+          </div>
+          <p class="feedback__thanks" id="feedback-thanks" hidden></p>
+        </div>
 
         <div class="verdict__foot">
           <button class="info-btn" type="button" aria-expanded="false" aria-controls="video-info" aria-label="How to read this result">
@@ -84,10 +99,13 @@
         </div>
 
         <div class="readme" id="video-info" hidden>
-          Deep Shield does not judge the video as a whole. It scores every face it finds, one at a
-          time. The bar above shows how those individual faces split. A clip is flagged as
-          manipulated once at least <strong id="threshold-note">5</strong> faces look synthetic,
-          because a genuine video almost never produces that many false alarms.
+          Two independent checks run on every clip. The <strong>face-swap</strong> check scores each
+          face it finds for the blending artefacts left by swapping one face onto another; a clip is
+          flagged once at least <strong id="threshold-note">5</strong> faces look synthetic. The
+          <strong>AI-generation</strong> check ignores faces entirely and instead measures the
+          texture, sensor noise and frequency signature of the footage itself, because a fully
+          generated scene has no face to swap &mdash; it is synthetic all the way through. Either
+          check alone is enough to raise a flag, and the two agreeing is the strongest signal.
         </div>
       </div>
 
@@ -159,6 +177,78 @@
       '</div><div class="evidence__label">' + label + "</div></div>";
   }
 
+  function signalCard(title, icon, verdict, detail) {
+    var cls = verdict === "Fake" ? "signal--fake" : verdict === "Real" ? "signal--real" : "signal--off";
+    var text = verdict === "Fake" ? "Detected" : verdict === "Real" ? "Not detected" : "Not applicable";
+    return '<div class="signal ' + cls + '"><div class="signal__head"><i class="fa-solid ' + icon +
+      '"></i> ' + title + '</div><div class="signal__verdict">' + text +
+      '</div><div class="signal__detail">' + detail + "</div></div>";
+  }
+
+  function renderSignals(data) {
+    var s = data.synthetic;
+    var faceDetail = data.faceVerdict === null
+      ? "No face was found to check."
+      : data.fakeFaces + " of " + data.analysedFaces + " faces showed swap artefacts.";
+    var genDetail = s
+      ? s.confidence + "% confident, from " + s.framesChecked + " frames of texture, noise and frequency analysis."
+      : "The generation model was unavailable for this run.";
+    document.getElementById("signals").innerHTML =
+      signalCard("Face swapping", "fa-user-pen", data.faceVerdict, faceDetail) +
+      signalCard("AI generation", "fa-wand-magic-sparkles", s ? s.verdict : null, genDetail);
+  }
+
+  var currentJobId = null;
+
+  document.getElementById("feedback-actions").addEventListener("click", function (e) {
+    var button = e.target.closest(".fb-btn");
+    if (!button) return;
+    var correct = button.getAttribute("data-correct") === "1";
+    Array.prototype.forEach.call(
+      document.querySelectorAll("#feedback-actions .fb-btn"),
+      function (b) { b.disabled = true; }
+    );
+    fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId: currentJobId, correct: correct, kind: "video" }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var thanks = document.getElementById("feedback-thanks");
+        var st = data.stats || {};
+        var msg = correct
+          ? "Thanks — logged as correct."
+          : "Thanks — logged as a miss. This is the signal the model learns from.";
+        if (data.retrained) {
+          msg += " <strong>The model just retrained</strong> on " + data.retrained.samples + " samples.";
+        } else if (st.untilRetrain) {
+          msg += " " + st.untilRetrain + " more before the next retrain.";
+        }
+        if (st.total) {
+          msg += " You have rated " + st.total + " results, agreeing with " + st.agreement + "%.";
+        }
+        thanks.innerHTML = msg;
+        thanks.hidden = false;
+        document.getElementById("feedback-actions").hidden = true;
+        document.getElementById("feedback-question").hidden = true;
+      })
+      .catch(function () {
+        document.getElementById("feedback-thanks").textContent = "Could not save that feedback.";
+        document.getElementById("feedback-thanks").hidden = false;
+      });
+  });
+
+  function resetFeedback() {
+    document.getElementById("feedback-actions").hidden = false;
+    document.getElementById("feedback-question").hidden = false;
+    document.getElementById("feedback-thanks").hidden = true;
+    Array.prototype.forEach.call(
+      document.querySelectorAll("#feedback-actions .fb-btn"),
+      function (b) { b.disabled = false; }
+    );
+  }
+
   createAnalyser({
     endpoint: "/api/analyze/video",
     inputId: "file-input",
@@ -177,7 +267,10 @@
       framesBox.style.display = "none";
       showPreview(file);
     },
-    onResult: function (data) {
+    onResult: function (data, jobId) {
+      currentJobId = jobId;
+      resetFeedback();
+      renderSignals(data);
       var fake = data.verdict === "Fake";
       verdictBox.className = "verdict is-on " + (fake ? "verdict--fake" : "verdict--real");
 
@@ -190,19 +283,35 @@
       document.getElementById("verdict-reason").textContent = data.reason;
       document.getElementById("threshold-note").textContent = data.threshold;
 
-      document.getElementById("meter-fake").textContent =
-        data.fakeFaces + " manipulated (" + data.fakeShare + "%)";
-      document.getElementById("meter-real").textContent = data.realFaces + " authentic";
-      document.getElementById("meter-fake-bar").style.width = data.fakeShare + "%";
-      document.getElementById("meter-real-bar").style.width = (100 - data.fakeShare) + "%";
+      var meter = document.querySelector("#verdict .meter");
+      if (data.analysedFaces > 0) {
+        meter.hidden = false;
+        document.getElementById("meter-fake").textContent =
+          data.fakeFaces + " manipulated (" + data.fakeShare + "%)";
+        document.getElementById("meter-real").textContent = data.realFaces + " authentic";
+        document.getElementById("meter-fake-bar").style.width = data.fakeShare + "%";
+        document.getElementById("meter-real-bar").style.width = (100 - data.fakeShare) + "%";
+      } else {
+        meter.hidden = true;
+      }
 
-      document.getElementById("evidence").innerHTML =
-        evidenceItem(data.analysedFaces, "Faces analysed") +
-        evidenceItem(data.framesWithFace + " / " + data.framesSampled, "Frames with a face") +
-        evidenceItem(data.averageConfidence + "%", "Average confidence") +
-        evidenceItem(data.peakConfidence + "%", "Peak confidence") +
-        evidenceItem(data.durationSeconds + "s", "Clip duration") +
+      var tiles = "";
+      if (data.analysedFaces > 0) {
+        tiles += evidenceItem(data.analysedFaces, "Faces analysed") +
+          evidenceItem(data.framesWithFace + " / " + data.framesSampled, "Frames with a face") +
+          evidenceItem(data.averageConfidence + "%", "Face confidence");
+      } else {
+        tiles += evidenceItem("None", "Faces found");
+      }
+      if (data.synthetic) {
+        tiles += evidenceItem(data.synthetic.confidence + "%", "Generation confidence");
+        if (data.synthetic.generationScore !== null) {
+          tiles += evidenceItem(data.synthetic.generationScore + "%", "Diffusion model score");
+        }
+      }
+      tiles += evidenceItem(data.durationSeconds + "s", "Clip duration") +
         evidenceItem(data.resolution, "Resolution");
+      document.getElementById("evidence").innerHTML = tiles;
 
       framesGrid.innerHTML = data.frames
         .map(function (frame) {

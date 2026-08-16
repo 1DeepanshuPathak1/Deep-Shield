@@ -16,7 +16,9 @@ from tensorflow.keras.layers import Concatenate, Dense, Input
 from tensorflow.keras.models import Model
 from tensorflow.keras.preprocessing import image
 
+import feedback_store
 import media_tools
+import synthetic_detector
 from media_tools import MediaError
 from model_predict_audio import extract_features, loaded_model
 
@@ -166,6 +168,7 @@ def scan_video(video_path, job_id=None, base=5, span=70):
 
     targets = np.linspace(0, total_frames - 1, SAMPLE_FRAMES, dtype=int)
     frames = []
+    raw_frames = []
     real_faces = 0
     fake_faces = 0
     frames_without_face = 0
@@ -183,6 +186,7 @@ def scan_video(video_path, job_id=None, base=5, span=70):
         if not ok:
             continue
 
+        raw_frames.append(frame)
         detections = detector.detect_faces(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         if not detections:
             frames_without_face += 1
@@ -247,35 +251,75 @@ def scan_video(video_path, job_id=None, base=5, span=70):
 
     capture.release()
 
-    analysed_faces = real_faces + fake_faces
-    if analysed_faces == 0:
-        raise MediaError(
-            "No faces were detected in this video, so the visual track cannot be analysed."
-        )
+    if job_id:
+        update_job(job_id, stage="Checking for AI generation", progress=base + span)
+    synthetic = synthetic_detector.analyse_frames(raw_frames)
 
-    if fake_faces >= FAKE_FRAME_THRESHOLD:
-        verdict = "Fake"
-        reason = (
+    analysed_faces = real_faces + fake_faces
+
+    if analysed_faces == 0:
+        if synthetic is None:
+            raise MediaError(
+                "No faces were detected and the generation check was unavailable, so "
+                "this video cannot be analysed."
+            )
+        face_verdict = None
+        face_reason = "No face was detected, so the face-swap check did not apply."
+    elif fake_faces >= FAKE_FRAME_THRESHOLD:
+        face_verdict = "Fake"
+        face_reason = (
             f"{fake_faces} of the {analysed_faces} analysed faces were classified as "
             f"manipulated, which meets the alert threshold of {FAKE_FRAME_THRESHOLD}."
         )
     elif real_faces > fake_faces:
-        verdict = "Real"
-        reason = (
-            f"{real_faces} of the {analysed_faces} analysed faces were classified as "
-            f"authentic and manipulated faces stayed below the alert threshold of "
-            f"{FAKE_FRAME_THRESHOLD}."
+        face_verdict = "Real"
+        face_reason = (
+            f"{real_faces} of the {analysed_faces} analysed faces looked authentic and "
+            f"manipulated faces stayed below the alert threshold of {FAKE_FRAME_THRESHOLD}."
         )
     else:
-        verdict = "Fake"
-        reason = (
+        face_verdict = "Fake"
+        face_reason = (
             f"Manipulated faces ({fake_faces}) matched or outnumbered authentic faces "
             f"({real_faces}) across the analysed frames."
         )
 
+    synthetic_verdict = synthetic["verdict"] if synthetic else None
+
+    if face_verdict == "Fake" and synthetic_verdict == "Fake":
+        verdict = "Fake"
+        reason = (
+            f"{face_reason} The generation check independently agreed, scoring this "
+            f"footage {synthetic['confidence']}% synthetic."
+        )
+    elif synthetic_verdict == "Fake":
+        verdict = "Fake"
+        reason = (
+            f"The footage itself looks generated rather than filmed "
+            f"({synthetic['confidence']}% confidence). "
+            + (
+                face_reason
+                if face_verdict is None
+                else "The faces in it did not show swap artefacts, which is what a fully "
+                "AI-generated scene looks like."
+            )
+        )
+    elif face_verdict == "Fake":
+        verdict = "Fake"
+        reason = f"{face_reason} The footage otherwise looks camera-captured."
+    elif face_verdict is None:
+        verdict = "Real"
+        reason = f"{face_reason} The footage looks camera-captured rather than generated."
+    else:
+        verdict = "Real"
+        reason = f"{face_reason} The footage also looks camera-captured rather than generated."
+
     return {
         "verdict": verdict,
         "reason": reason,
+        "faceVerdict": face_verdict,
+        "faceReason": face_reason,
+        "synthetic": synthetic,
         "fakeFaces": fake_faces,
         "realFaces": real_faces,
         "analysedFaces": analysed_faces,
@@ -596,6 +640,114 @@ def api_preview():
         return jsonify({"error": str(exc)}), 415
     finally:
         discard(temp_path)
+
+
+def retrain_fusion():
+    import joblib
+    from sklearn.ensemble import HistGradientBoostingClassifier
+    from sklearn.metrics import roc_auc_score
+    from sklearn.model_selection import StratifiedKFold, cross_val_predict
+
+    import forensics
+
+    if not os.path.exists("fusion_trainset.npz"):
+        return None
+
+    base = np.load("fusion_trainset.npz")
+    X_base, y_base = base["X"], base["y"]
+
+    X_new, y_new = feedback_store.labelled_features(forensics.FEATURE_NAMES)
+    if X_new is None or len(X_new) < 4:
+        return None
+
+    repeats = 3
+    X_all = np.vstack([X_base] + [X_new] * repeats)
+    y_all = np.concatenate([y_base] + [y_new] * repeats)
+
+    model = HistGradientBoostingClassifier(
+        max_iter=300, learning_rate=0.06, max_depth=4, l2_regularization=1.0, random_state=0
+    )
+
+    accuracy = auc = None
+    if len(np.unique(y_all)) > 1 and np.bincount(y_all).min() >= 5:
+        folds = StratifiedKFold(n_splits=5, shuffle=True, random_state=0)
+        probs = cross_val_predict(model, X_all, y_all, cv=folds, method="predict_proba")[:, 1]
+        accuracy = float(((probs >= 0.5).astype(int) == y_all).mean())
+        auc = float(roc_auc_score(y_all, probs))
+
+    model.fit(X_all, y_all)
+    joblib.dump(
+        {
+            "model": model,
+            "features": forensics.FEATURE_NAMES,
+            "accuracy": accuracy,
+            "auc": auc,
+            "samples": int(len(X_all)),
+            "trained": time.strftime("%Y-%m-%d"),
+        },
+        "fusion_model.pkl",
+    )
+    synthetic_detector.reload_fusion()
+    feedback_store.log_retrain(int(len(X_all)), accuracy, auc)
+    return {"samples": int(len(X_all)), "accuracy": accuracy, "auc": auc}
+
+
+@app.route("/api/feedback", methods=["POST"])
+def api_feedback():
+    payload = request.get_json(silent=True) or {}
+    job_id = payload.get("jobId")
+    correct = payload.get("correct")
+    if correct is None:
+        return jsonify({"error": "Missing verdict feedback."}), 400
+
+    job = read_job(job_id) if job_id else None
+    result = (job or {}).get("result") or {}
+
+    kind = payload.get("kind") or "video"
+    verdict = payload.get("verdict")
+    features = None
+
+    if isinstance(result, dict):
+        combined = result.get("combined")
+        video = result.get("video") if isinstance(result.get("video"), dict) else None
+        if video is None and result.get("synthetic") is not None:
+            video = result
+        verdict = verdict or (combined or {}).get("verdict") or result.get("verdict")
+        if video and isinstance(video.get("synthetic"), dict):
+            features = video["synthetic"].get("features")
+
+    if not verdict:
+        return jsonify({"error": "That result is no longer available."}), 404
+
+    feedback_store.record(kind, verdict, bool(correct), features, payload.get("note"))
+    stats = feedback_store.stats()
+
+    retrained = None
+    if features and stats["usable"] and stats["usable"] % feedback_store.RETRAIN_EVERY == 0:
+        try:
+            retrained = retrain_fusion()
+        except Exception:
+            retrained = None
+
+    return jsonify({"stored": True, "stats": feedback_store.stats(), "retrained": retrained})
+
+
+@app.route("/api/feedback/stats")
+def api_feedback_stats():
+    return jsonify(
+        {"stats": feedback_store.stats(), "model": synthetic_detector.fusion_info()}
+    )
+
+
+@app.route("/api/feedback/retrain", methods=["POST"])
+def api_feedback_retrain():
+    try:
+        outcome = retrain_fusion()
+    except Exception as exc:
+        return jsonify({"error": str(exc)[:200]}), 500
+    if outcome is None:
+        return jsonify({"error": "Not enough labelled feedback to retrain yet."}), 400
+    return jsonify({"retrained": outcome, "stats": feedback_store.stats()})
 
 
 @app.route("/api/job/<job_id>")

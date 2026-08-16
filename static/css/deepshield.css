@@ -902,6 +902,123 @@ p {
   margin-bottom: 6px;
 }
 
+.signals {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 14px;
+  margin-top: 20px;
+}
+
+.signal {
+  padding: 16px 18px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.signal__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-bottom: 9px;
+}
+
+.signal__verdict {
+  font-size: 1.08rem;
+  font-weight: 750;
+}
+
+.signal--fake .signal__verdict {
+  color: var(--bad);
+}
+
+.signal--real .signal__verdict {
+  color: var(--ok);
+}
+
+.signal--off .signal__verdict {
+  color: var(--ink-3);
+  font-size: 0.95rem;
+}
+
+.signal__detail {
+  margin-top: 4px;
+  font-size: 0.79rem;
+  color: var(--ink-3);
+  line-height: 1.45;
+}
+
+.feedback {
+  margin-top: 24px;
+  padding: 18px 20px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.feedback__question {
+  font-size: 0.92rem;
+  font-weight: 560;
+  margin-bottom: 12px;
+}
+
+.feedback__actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.fb-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink-2);
+  font-family: inherit;
+  font-size: 0.89rem;
+  font-weight: 560;
+  cursor: pointer;
+  transition: border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.fb-btn:hover {
+  color: var(--ink);
+  border-color: var(--ink-3);
+}
+
+.fb-btn--yes:hover {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+
+.fb-btn--no:hover {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.fb-btn[disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.feedback__thanks {
+  font-size: 0.86rem;
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+
+.feedback__thanks strong {
+  color: var(--ink);
+}
+
 .chart-flow {
   columns: 2;
   column-gap: 20px;
