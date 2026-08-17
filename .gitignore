@@ -28,3 +28,6 @@ _eval/
 clip_trainset.npz
 pooled_cache.npz
 !clip_probe.pkl
+video_cache.npz
+_video/
+!video_model.pkl

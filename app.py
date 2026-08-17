@@ -280,68 +280,28 @@ def scan_video(video_path, job_id=None, base=5, span=70):
 
     analysed_faces = real_faces + fake_faces
 
-    if analysed_faces == 0:
-        if synthetic is None:
-            raise MediaError(
-                "No faces were detected and the generation check was unavailable, so "
-                "this video cannot be analysed."
-            )
-        face_verdict = None
-        face_reason = "No face was detected, so the face-swap check did not apply."
-    elif fake_faces >= FAKE_FRAME_THRESHOLD:
-        face_verdict = "Fake"
-        face_reason = (
-            f"{fake_faces} of the {analysed_faces} analysed faces were classified as "
-            f"manipulated, which meets the alert threshold of {FAKE_FRAME_THRESHOLD}."
-        )
-    elif real_faces > fake_faces:
-        face_verdict = "Real"
-        face_reason = (
-            f"{real_faces} of the {analysed_faces} analysed faces looked authentic and "
-            f"manipulated faces stayed below the alert threshold of {FAKE_FRAME_THRESHOLD}."
-        )
-    else:
-        face_verdict = "Fake"
-        face_reason = (
-            f"Manipulated faces ({fake_faces}) matched or outnumbered authentic faces "
-            f"({real_faces}) across the analysed frames."
+    if synthetic is None:
+        raise MediaError(
+            "The generation check was unavailable, so this video cannot be judged."
         )
 
-    synthetic_verdict = synthetic["verdict"] if synthetic else None
-
-    if face_verdict == "Fake" and synthetic_verdict == "Fake":
-        verdict = "Fake"
+    verdict = synthetic["verdict"]
+    if verdict == "Fake":
         reason = (
-            f"{face_reason} The generation check independently agreed, scoring this "
-            f"footage {synthetic['confidence']}% synthetic."
+            f"The footage carries the signature of a generative model rather than a camera "
+            f"({synthetic['confidence']}% confidence), measured across "
+            f"{synthetic['framesChecked']} sampled frames."
         )
-    elif synthetic_verdict == "Fake":
-        verdict = "Fake"
-        reason = (
-            f"The footage itself looks generated rather than filmed "
-            f"({synthetic['confidence']}% confidence). "
-            + (
-                face_reason
-                if face_verdict is None
-                else "The faces in it did not show swap artefacts, which is what a fully "
-                "AI-generated scene looks like."
-            )
-        )
-    elif face_verdict == "Fake":
-        verdict = "Fake"
-        reason = f"{face_reason} The footage otherwise looks camera-captured."
-    elif face_verdict is None:
-        verdict = "Real"
-        reason = f"{face_reason} The footage looks camera-captured rather than generated."
     else:
-        verdict = "Real"
-        reason = f"{face_reason} The footage also looks camera-captured rather than generated."
+        reason = (
+            f"The footage looks camera-captured ({synthetic['confidence']}% confidence), "
+            f"measured across {synthetic['framesChecked']} sampled frames."
+        )
 
     return {
         "verdict": verdict,
         "reason": reason,
-        "faceVerdict": face_verdict,
-        "faceReason": face_reason,
+        "facesSeen": analysed_faces,
         "synthetic": synthetic,
         "evidence": evidence,
         "fakeFaces": fake_faces,
