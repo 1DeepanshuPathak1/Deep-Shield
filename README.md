@@ -82,24 +82,56 @@ the boundary.
 
 ## Measured performance
 
-Generation detector, 5-fold cross-validated on **6,792 samples** (AI artwork, real photographs,
-and frames from both halves of the video dataset):
+The headline figure for the generation detector is **0.806 AUC, 0.738 accuracy**, measured on
+6,792 full-resolution samples that were **disjoint from the training set** (verified by file
+hash: zero overlap).
+
+### A resolution artefact worth knowing about
+
+An earlier run reported 0.910 AUC. That number was inflated and should not be quoted.
+
+The image corpus mixes 32×32 thumbnails with full-size images, and the two classes were not
+mixed in the same proportion — 73.5% of the generated images were thumbnails against 70.7% of
+the real ones. Most of these forensic measurements are meaningless at 32×32: there is no
+meaningful noise floor, sharpness, or DCT statistic in a thumbnail. The model was therefore
+partly learning to detect *image resolution* rather than *generation*, and resolution correlated
+with the label.
+
+Three measurements settle it:
+
+| Evaluation | Accuracy | AUC |
+|---|---|---|
+| Mixed-resolution model on mixed-resolution data | 0.819 | 0.910 |
+| Same model on unseen full-resolution data only | 0.738 | **0.806** |
+| Full-resolution-only model, 5-fold cross-validated | 0.713 | 0.788 |
+
+The drop from 0.910 to 0.806 on the same model is the size of the artefact. The shipped model is
+the mixed-resolution one, because it still generalises best to full-resolution input — more
+varied training data helped even though it also learned a shortcut — but it is quoted at its
+honest 0.806, and its reference distributions are computed from full-resolution data only.
+
+### Signal breakdown
+
+On full-resolution data, 5-fold cross-validated:
 
 | Signal | Accuracy | AUC |
 |---|---|---|
-| Pretrained classifier alone | 0.566 | 0.598 |
-| Forensic features alone (logistic) | 0.738 | 0.810 |
-| Forensic features alone (boosted) | 0.803 | 0.893 |
-| **Fusion (boosted)** | **0.819** | **0.910** |
+| Pretrained classifier alone | 0.529 | 0.540 |
+| Forensic features alone (logistic) | 0.672 | 0.717 |
+| Forensic features alone (boosted) | 0.712 | 0.779 |
+| Fusion (boosted) | 0.713 | 0.788 |
 
 The forensic features carry the result — the pretrained classifier is close to chance on this
 mixed image-and-video domain, because it degrades badly on compressed video frames. Gradient
-boosting substantially beats logistic regression, so the relationship is non-linear.
+boosting beats logistic regression, so the relationship is non-linear.
 
-Strongest individual features by AUC: `high_freq_ratio` 0.690, `spectral_slope` 0.627,
-`dct_benford` 0.615, `laplacian_var` 0.609, `noise_std` 0.606, `sharpness_uniformity` 0.603.
-Weakest, near chance: `cfa_ratio` 0.511, `channel_noise_corr` 0.508, `residual_energy_ratio` 0.506
-— re-compression destroys the sensor traces these rely on.
+Strongest individual features on full-resolution data: `high_freq_ratio` 0.694,
+`spectral_slope` 0.690, `laplacian_var` 0.634, `noise_std` 0.630, `channel_noise_corr` 0.602.
+
+Several measurements sit at chance once thumbnails are excluded — `sharpness_uniformity` 0.508,
+`cfa_ratio` 0.506, `chroma_bleed` 0.501, `noise_kurtosis` 0.501. Their apparent value in the
+mixed run came from the resolution artefact. They are retained because the boosted model
+discards them at no cost, but they are not evidence.
 
 Other detectors, on their own held-out sets:
 
@@ -207,8 +239,11 @@ static/css/             Hand-authored stylesheet, no framework
 
 - **The video model needs a visible face** for the face-swap check. A clip with no detectable face
   is still analysed by the generation check, but that one signal carries the verdict alone.
-- **0.910 AUC is useful, not solved.** Roughly one clip in five will be misjudged. The feedback
+- **0.806 AUC is useful, not solved.** Roughly one clip in four will be misjudged. The feedback
   loop exists to close that gap on the material you actually care about.
+- **Benchmark numbers are easy to inflate.** The resolution artefact documented above cost 0.10
+  AUC of imaginary performance and was only caught by re-measuring on a filtered, disjoint set.
+  Treat any single headline figure with suspicion, including this one.
 - **Accuracy is dataset-bound.** Figures are measured on held-out data from these specific
   sources. Media from a different generator may score considerably lower.
 - **The face-swap model false-positives on out-of-domain stills**, having been trained on video
