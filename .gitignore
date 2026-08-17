@@ -25,3 +25,6 @@ feedback.db
 fusion_trainset.npz
 _eval/
 *.log
+clip_trainset.npz
+pooled_cache.npz
+!clip_probe.pkl

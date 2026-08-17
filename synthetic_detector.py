@@ -223,11 +223,34 @@ def _drivers(features):
     return findings
 
 
+def _clip_probability(frame_bgr, features):
+    try:
+        import clip_probe
+
+        if not clip_probe.available():
+            return None
+        vector = clip_probe.embed(frame_bgr)
+        if vector is None:
+            return None
+        payload = clip_probe._load_probe()
+        meta = clip_probe.info()
+        row = vector.reshape(1, -1)
+        if clip_probe._probe_meta.get("usesForensics", True):
+            names = clip_probe._probe_meta.get("features") or forensics.FEATURE_NAMES
+            extra = np.array([[float(features.get(n, 0.0)) for n in names]])
+            row = np.hstack([row, np.nan_to_num(extra, nan=0.0, posinf=0.0, neginf=0.0)])
+        return float(payload.predict_proba(row)[0][1])
+    except Exception:
+        return None
+
+
 def analyse_image(frame_bgr):
     scores = generation_scores(frame_bgr)
     mean_score = float(np.mean(list(scores.values()))) if scores else 0.0
     features = forensics.frame_features(frame_bgr, mean_score)
-    probability = _probability(features)
+    probability = _clip_probability(frame_bgr, features)
+    if probability is None:
+        probability = _probability(features)
 
     if probability is None and not scores:
         return None

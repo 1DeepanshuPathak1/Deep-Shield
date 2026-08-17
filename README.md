@@ -82,56 +82,59 @@ the boundary.
 
 ## Measured performance
 
-The headline figure for the generation detector is **0.806 AUC, 0.738 accuracy**, measured on
-6,792 full-resolution samples that were **disjoint from the training set** (verified by file
-hash: zero overlap).
-
-### A resolution artefact worth knowing about
-
-An earlier run reported 0.910 AUC. That number was inflated and should not be quoted.
-
-The image corpus mixes 32×32 thumbnails with full-size images, and the two classes were not
-mixed in the same proportion — 73.5% of the generated images were thumbnails against 70.7% of
-the real ones. Most of these forensic measurements are meaningless at 32×32: there is no
-meaningful noise floor, sharpness, or DCT statistic in a thumbnail. The model was therefore
-partly learning to detect *image resolution* rather than *generation*, and resolution correlated
-with the label.
-
-Three measurements settle it:
+Two numbers matter, and they are very far apart. Both are reported because quoting only the
+first would be misleading.
 
 | Evaluation | Accuracy | AUC |
 |---|---|---|
-| Mixed-resolution model on mixed-resolution data | 0.819 | 0.910 |
-| Same model on unseen full-resolution data only | 0.738 | **0.806** |
-| Full-resolution-only model, 5-fold cross-validated | 0.713 | 0.788 |
+| Random 5-fold on the pooled corpus | 0.893 | 0.962 |
+| **Leave-one-corpus-out (unseen generator)** | **0.556** | **0.573** |
 
-The drop from 0.910 to 0.806 on the same model is the size of the artefact. The shipped model is
-the mixed-resolution one, because it still generalises best to full-resolution input — more
-varied training data helped even though it also learned a shortcut — but it is quoted at its
-honest 0.806, and its reference distributions are computed from full-resolution data only.
+The generation detector is trained on 14,594 samples pooled from six sources: ELSA_D3 (four
+Stable Diffusion variants), COCO photographs, an AI-artwork corpus with its real counterpart,
+and frames from both halves of the video dataset.
 
-### Signal breakdown
+**Read the second row, not the first.** The first measures how well the model recognises
+material resembling what it has already seen. The second holds out an entire corpus — both its
+generated and its real half — trains on the rest, and tests on the unseen one. That is what
+happens when a user uploads content from a generator the model was never shown, which is the
+actual use case.
 
-On full-resolution data, 5-fold cross-validated:
+Per fold:
 
-| Signal | Accuracy | AUC |
+| Held out | Accuracy | AUC |
 |---|---|---|
-| Pretrained classifier alone | 0.529 | 0.540 |
-| Forensic features alone (logistic) | 0.672 | 0.717 |
-| Forensic features alone (boosted) | 0.712 | 0.779 |
-| Fusion (boosted) | 0.713 | 0.788 |
+| ELSA_D3 + COCO | 0.633 | 0.685 |
+| AI artwork + real artwork | 0.477 | 0.472 |
+| DFDV video | 0.559 | 0.563 |
 
-The forensic features carry the result — the pretrained classifier is close to chance on this
-mixed image-and-video domain, because it degrades badly on compressed video frames. Gradient
-boosting beats logistic regression, so the relationship is non-linear.
+One fold lands below chance. Cross-generator generalisation is the open research problem in this
+field, and this project does not solve it.
 
-Strongest individual features on full-resolution data: `high_freq_ratio` 0.694,
-`spectral_slope` 0.690, `laplacian_var` 0.634, `noise_std` 0.630, `channel_noise_corr` 0.602.
+### How the method evolved, and what each step actually proved
 
-Several measurements sit at chance once thumbnails are excluded — `sharpness_uniformity` 0.508,
-`cfa_ratio` 0.506, `chroma_bleed` 0.501, `noise_kurtosis` 0.501. Their apparent value in the
-mixed run came from the resolution artefact. They are retained because the boosted model
-discards them at no cost, but they are not evidence.
+| Approach | In-distribution AUC | Honest AUC |
+|---|---|---|
+| 22 hand-crafted forensic features + gradient boosting | 0.910 | 0.806 → later 0.51 across corpora |
+| CLIP ViT-B/32 embedding + linear probe, single corpus | 0.997 | 0.438 across corpora |
+| CLIP + forensics, pooled across six corpora | 0.962 | **0.573** |
+
+Two inflated results were found and discarded along the way, both by re-measuring rather than by
+inspection:
+
+**A resolution artefact.** The first image corpus mixes 32×32 thumbnails with full-size images,
+and not equally per class — 73.5% of generated images were thumbnails against 70.7% of real
+ones. Most of these measurements are meaningless at that size, so the model partly learned to
+detect resolution, which correlated with the label. Removing thumbnails dropped the same model
+from 0.910 to 0.806.
+
+**A content artefact.** Training CLIP on ELSA_D3 against COCO reached 0.997 AUC. But ELSA_D3 is
+prompt-driven artwork and COCO is everyday photography, so the probe learned *artwork versus
+photograph*, not *generated versus real*. On a different corpus it scored 0.438 — below chance,
+meaning it was systematically inverted.
+
+Pooling six corpora is what closed most of that gap, and the honest figure is now 0.573 rather
+than a number that would collapse on contact with real material.
 
 Other detectors, on their own held-out sets:
 
@@ -239,11 +242,17 @@ static/css/             Hand-authored stylesheet, no framework
 
 - **The video model needs a visible face** for the face-swap check. A clip with no detectable face
   is still analysed by the generation check, but that one signal carries the verdict alone.
-- **0.806 AUC is useful, not solved.** Roughly one clip in four will be misjudged. The feedback
-  loop exists to close that gap on the material you actually care about.
-- **Benchmark numbers are easy to inflate.** The resolution artefact documented above cost 0.10
-  AUC of imaginary performance and was only caught by re-measuring on a filtered, disjoint set.
-  Treat any single headline figure with suspicion, including this one.
+- **On an unseen generator the detector is close to a coin toss (0.573 AUC).** It performs well
+  on material resembling its training corpora and degrades sharply outside them. Treat a verdict
+  as a prompt to look closer, never as an answer.
+- **Benchmark numbers here were inflated twice**, by 0.10 and 0.42 AUC respectively, and both
+  were caught only by re-measuring on held-out corpora rather than by reading the code. Treat any
+  single headline figure with suspicion, including 0.962.
+- **The forensic measurements are shown because they are inspectable**, not because they are
+  individually decisive. The strongest single feature reaches 0.694 AUC on full-resolution data.
+- **The audio and face-swap models have not been stress-tested this way.** Their quoted figures
+  (96.0% and 88.2%) are in-distribution, measured on held-out splits of their own datasets, and
+  should be assumed to carry the same kind of optimism until tested across corpora.
 - **Accuracy is dataset-bound.** Figures are measured on held-out data from these specific
   sources. Media from a different generator may score considerably lower.
 - **The face-swap model false-positives on out-of-domain stills**, having been trained on video
