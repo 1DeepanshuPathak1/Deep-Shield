@@ -31,3 +31,6 @@ pooled_cache.npz
 video_cache.npz
 _video/
 !video_model.pkl
+_vparts/
+video_cache_norm.npz
+_video_norm/

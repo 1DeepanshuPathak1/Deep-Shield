@@ -19,6 +19,7 @@ from tensorflow.keras.preprocessing import image
 import feedback_store
 import media_tools
 import synthetic_detector
+import video_model
 import visuals
 from media_tools import MediaError
 from model_predict_audio import extract_features, loaded_model
@@ -255,8 +256,16 @@ def scan_video(video_path, job_id=None, base=5, span=70):
     capture.release()
 
     if job_id:
-        update_job(job_id, stage="Measuring generation artefacts", progress=base + span)
+        update_job(job_id, stage="Measuring temporal artefacts", progress=base + span)
+    motion = video_model.analyse(raw_frames)
     synthetic = synthetic_detector.analyse_frames(raw_frames, frame_times)
+    if motion and synthetic:
+        synthetic["motion"] = motion
+        synthetic["verdict"] = motion["verdict"]
+        synthetic["confidence"] = motion["confidence"]
+        synthetic["probability"] = motion["probability"]
+    elif motion:
+        synthetic = {"motion": motion, **motion}
 
     evidence = []
     if synthetic and synthetic.get("perFrame"):
