@@ -19,6 +19,7 @@ from tensorflow.keras.preprocessing import image
 import feedback_store
 import media_tools
 import synthetic_detector
+import visuals
 from media_tools import MediaError
 from model_predict_audio import extract_features, loaded_model
 
@@ -360,6 +361,51 @@ def scan_video(video_path, job_id=None, base=5, span=70):
     }
 
 
+AUDIO_MEANING = {
+    "Spectral Centroid": "Where the brightness of the sound sits",
+    "Chroma": "Musical pitch content",
+    "Zero-Crossing Rate": "How often the waveform flips sign",
+    "RMSE": "Overall loudness energy",
+}
+
+
+def audio_drivers(vector, names):
+    if not hasattr(loaded_model, "predict_proba"):
+        return []
+    try:
+        full = float(loaded_model.predict_proba(vector)[0][1])
+    except Exception:
+        return []
+
+    rows = np.repeat(vector, vector.shape[1], axis=0)
+    for i in range(vector.shape[1]):
+        rows[i, i] = 0.0
+    try:
+        ablated = loaded_model.predict_proba(rows)[:, 1]
+    except Exception:
+        return []
+
+    findings = []
+    for i, name in enumerate(names):
+        delta = full - float(ablated[i])
+        if abs(delta) < 1e-4:
+            continue
+        findings.append(
+            {
+                "key": name,
+                "title": name,
+                "explanation": AUDIO_MEANING.get(
+                    name, "Shape of the vocal tract filter at this frequency band"
+                ),
+                "value": round(float(vector[0, i]), 3),
+                "impact": round(delta * 100.0, 2),
+                "direction": "synthetic" if delta > 0 else "authentic",
+            }
+        )
+    findings.sort(key=lambda e: -abs(e["impact"]))
+    return findings[:6]
+
+
 def scan_audio(audio_path):
     features = extract_features(audio_path)
     vector = np.asarray(features, dtype=float).reshape(1, -1)
@@ -412,6 +458,8 @@ def scan_audio(audio_path):
         "contributions": contributions,
         "featureCount": len(names),
         "reason": reason,
+        "drivers": audio_drivers(vector, names),
+        "diagnostics": visuals.audio_diagnostics(audio_path),
     }
 
 

@@ -15,10 +15,13 @@ def _encode(image):
 
 def _fit(frame):
     longest = max(frame.shape[:2])
-    if longest <= MAP_SIDE * 2:
-        return frame
-    scale = (MAP_SIDE * 2) / float(longest)
-    return cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+    if longest > MAP_SIDE * 2:
+        scale = (MAP_SIDE * 2) / float(longest)
+        return cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+    if longest < MAP_SIDE:
+        scale = MAP_SIDE / float(longest)
+        return cv2.resize(frame, None, fx=scale, fy=scale, interpolation=cv2.INTER_NEAREST)
+    return frame
 
 
 def _grey(frame):
@@ -62,6 +65,43 @@ def sharpness_map(frame):
     blurred = cv2.GaussianBlur(lap, (0, 0), 6)
     coloured = cv2.applyColorMap(_stretch(blurred), cv2.COLORMAP_TURBO)
     return _encode(coloured)
+
+
+def spectrogram(audio_path):
+    try:
+        import librosa
+
+        y, sr = librosa.load(audio_path, sr=16000, duration=12.0)
+        if y.size < 1024:
+            return None
+        mel = librosa.feature.melspectrogram(y=y, sr=sr, n_mels=96, fmax=sr // 2)
+        db = librosa.power_to_db(mel, ref=np.max)
+        image = _stretch(db)
+        image = np.flipud(image)
+        image = cv2.resize(image, (520, 200), interpolation=cv2.INTER_LINEAR)
+        coloured = cv2.applyColorMap(image, cv2.COLORMAP_MAGMA)
+        return _encode(coloured)
+    except Exception:
+        return None
+
+
+def audio_diagnostics(audio_path):
+    image = spectrogram(audio_path)
+    if not image:
+        return []
+    return [
+        {
+            "key": "spectrogram",
+            "title": "Mel spectrogram",
+            "image": image,
+            "reading": (
+                "Time runs left to right, pitch bottom to top, brightness is energy. Real speech "
+                "shows ragged harmonic bands and noise between words. Synthesised speech often "
+                "looks smoother, with unusually clean gaps and a sharp cut-off along the top edge "
+                "where the vocoder stopped generating."
+            ),
+        }
+    ]
 
 
 def diagnostics(frame):

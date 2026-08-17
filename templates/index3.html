@@ -73,9 +73,22 @@
 
         <div class="evidence" id="evidence"></div>
 
-        <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">Measurements that drove this decision</h3>
+        <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">What decided this verdict</h3>
         <p style="font-size:0.85rem; color:var(--ink-3); margin-bottom:12px;">
-          The six acoustic features the model relies on most, with the value measured in your clip.
+          Ranked by how much each measurement actually moved the result for this clip, not by
+          general importance.
+        </p>
+        <div class="drivers" id="drivers"></div>
+
+        <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">Hear it with your eyes</h3>
+        <p style="font-size:0.85rem; color:var(--ink-3); margin-bottom:4px;">
+          The clip drawn as a spectrogram, where synthesis artefacts become visible.
+        </p>
+        <div class="diagnostics" id="diagnostics"></div>
+
+        <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">Features the model relies on most</h3>
+        <p style="font-size:0.85rem; color:var(--ink-3); margin-bottom:12px;">
+          Global importance across all training data, with the value measured in your clip.
         </p>
         <div style="overflow-x:auto;">
           <table class="split-table" id="contrib-table">
@@ -174,6 +187,9 @@
         evidenceItem(votes ? votes.total : 100, "Decision trees") +
         evidenceItem(data.featureCount, "Acoustic features") +
         evidenceItem(votes ? Math.max(votes.fake, votes.real) + " / " + votes.total : "n/a", "Majority size");
+
+      document.getElementById("drivers").innerHTML = renderDrivers(data.drivers);
+      document.getElementById("diagnostics").innerHTML = renderDiagnostics(data.diagnostics);
 
       document.getElementById("contrib-body").innerHTML = data.contributions
         .map(function (row) {

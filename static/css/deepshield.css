@@ -813,6 +813,155 @@ p {
   background: var(--s1);
 }
 
+.drivers {
+  display: grid;
+  gap: 10px;
+}
+
+.driver {
+  padding: 14px 16px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--line-strong);
+}
+
+.driver--synthetic {
+  border-left-color: var(--bad);
+}
+
+.driver--authentic {
+  border-left-color: var(--ok);
+}
+
+.driver__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.driver__title {
+  font-size: 0.92rem;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.driver__impact {
+  font-size: 0.82rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+.driver--synthetic .driver__impact {
+  color: var(--bad);
+}
+
+.driver--authentic .driver__impact {
+  color: var(--ok);
+}
+
+.driver__why {
+  margin-top: 5px;
+  font-size: 0.82rem;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
+.gauge {
+  margin-top: 12px;
+  position: relative;
+  height: 30px;
+}
+
+.gauge__track {
+  position: absolute;
+  top: 11px;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--ok) 0%, var(--line-strong) 50%, var(--bad) 100%);
+  opacity: 0.35;
+}
+
+.gauge__ref {
+  position: absolute;
+  top: 6px;
+  width: 2px;
+  height: 14px;
+  border-radius: 2px;
+  transform: translateX(-1px);
+}
+
+.gauge__ref--real {
+  background: var(--ok);
+}
+
+.gauge__ref--ai {
+  background: var(--bad);
+}
+
+.gauge__pin {
+  position: absolute;
+  top: 3px;
+  width: 12px;
+  height: 20px;
+  border-radius: 4px;
+  background: var(--ink);
+  border: 2px solid var(--surface-2);
+  transform: translateX(-6px);
+}
+
+.gauge__legend {
+  position: absolute;
+  top: 20px;
+  font-size: 0.64rem;
+  color: var(--ink-3);
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+
+.diagnostics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.diagnostic {
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  overflow: hidden;
+}
+
+.diagnostic img {
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  object-fit: cover;
+  background: #000;
+  display: block;
+}
+
+.diagnostic__body {
+  padding: 12px 14px;
+}
+
+.diagnostic__title {
+  font-size: 0.85rem;
+  font-weight: 650;
+  margin-bottom: 5px;
+}
+
+.diagnostic__reading {
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
 .tells {
   display: grid;
   gap: 8px;

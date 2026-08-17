@@ -61,10 +61,22 @@
 
         <div class="evidence" id="evidence"></div>
 
-        <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">What the image gives away</h3>
+        <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">What decided this verdict</h3>
         <p style="font-size:0.85rem; color:var(--ink-3); margin-bottom:12px;">
-          Each line is a measurable property of the pixels. Triggered rows are the ones pointing
-          towards generation.
+          Ranked by how much each signal actually moved the result. The marker shows where this
+          image sits between typical real footage and typical generated footage.
+        </p>
+        <div class="drivers" id="drivers"></div>
+
+        <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">See it for yourself</h3>
+        <p style="font-size:0.85rem; color:var(--ink-3); margin-bottom:4px;">
+          The same image rendered three ways, each exposing something the eye cannot see directly.
+        </p>
+        <div class="diagnostics" id="diagnostics"></div>
+
+        <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">Every signal measured</h3>
+        <p style="font-size:0.85rem; color:var(--ink-3); margin-bottom:12px;">
+          Triggered rows crossed the threshold learned from training data.
         </p>
         <div class="tells" id="tells"></div>
 
@@ -179,6 +191,9 @@
         evidenceItem(triggered + " / " + data.tells.length, "Signals triggered") +
         evidenceItem(data.resolution, "Resolution") +
         evidenceItem(data.faces, "Faces found");
+
+      document.getElementById("drivers").innerHTML = renderDrivers(data.drivers);
+      document.getElementById("diagnostics").innerHTML = renderDiagnostics(data.diagnostics);
 
       document.getElementById("tells").innerHTML = data.tells
         .map(function (t) {

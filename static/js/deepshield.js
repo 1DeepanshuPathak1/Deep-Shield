@@ -101,6 +101,55 @@
   }
 })();
 
+function renderDrivers(list) {
+  if (!list || !list.length) {
+    return '<p style="color:var(--ink-3); font-size:0.86rem;">No single signal dominated this result.</p>';
+  }
+  return list
+    .map(function (d) {
+      var sign = d.impact > 0 ? "+" : "";
+      var gauge = "";
+      if (d.scale) {
+        gauge =
+          '<div class="gauge">' +
+          '<div class="gauge__track"></div>' +
+          '<div class="gauge__ref gauge__ref--real" style="left:' + d.scale.real + '%"></div>' +
+          '<div class="gauge__ref gauge__ref--ai" style="left:' + d.scale.ai + '%"></div>' +
+          '<div class="gauge__pin" style="left:' + d.scale.position + '%"></div>' +
+          '<span class="gauge__legend" style="left:' + d.scale.real + '%">real ' + d.realMedian + "</span>" +
+          '<span class="gauge__legend" style="left:' + d.scale.ai + '%">AI ' + d.aiMedian + "</span>" +
+          "</div>";
+      }
+      return (
+        '<div class="driver driver--' + d.direction + '">' +
+        '<div class="driver__head"><span class="driver__title">' + d.title +
+        '</span><span class="driver__impact">' + sign + d.impact + " pts</span></div>" +
+        '<div class="driver__why">' + d.explanation + "</div>" +
+        '<div class="driver__why" style="color:var(--ink-2); margin-top:6px;">Measured <strong>' +
+        d.value + "</strong> &mdash; " +
+        (d.direction === "synthetic" ? "closer to generated" : "closer to camera") + "</div>" +
+        gauge +
+        "</div>"
+      );
+    })
+    .join("");
+}
+
+function renderDiagnostics(list) {
+  if (!list || !list.length) return "";
+  return list
+    .map(function (d) {
+      return (
+        '<figure class="diagnostic"><img src="' + d.image +
+        '" alt="' + d.title + '" /><figcaption class="diagnostic__body">' +
+        '<div class="diagnostic__title">' + d.title + "</div>" +
+        '<div class="diagnostic__reading">' + d.reading + "</div>" +
+        "</figcaption></figure>"
+      );
+    })
+    .join("");
+}
+
 function formatBytes(bytes) {
   if (!bytes) return "0 B";
   var units = ["B", "KB", "MB", "GB"];

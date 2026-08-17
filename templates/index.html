@@ -78,6 +78,23 @@
 
         <div class="evidence" id="evidence"></div>
 
+        <div id="proof" hidden>
+          <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">What decided this verdict</h3>
+          <p style="font-size:0.85rem; color:var(--ink-3); margin-bottom:12px;">
+            Ranked by how much each signal actually moved the result. The marker shows where this
+            clip sits between typical camera footage and typical generated footage.
+          </p>
+          <div class="drivers" id="drivers"></div>
+
+          <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">
+            See it for yourself <span id="diag-frame" style="font-weight:400; color:var(--ink-3);"></span>
+          </h3>
+          <p style="font-size:0.85rem; color:var(--ink-3); margin-bottom:4px;">
+            The most suspicious frame, rendered three ways to expose what the eye cannot see.
+          </p>
+          <div class="diagnostics" id="diagnostics"></div>
+        </div>
+
         <div class="feedback" id="feedback">
           <div class="feedback__question" id="feedback-question">Was this verdict correct?</div>
           <div class="feedback__actions" id="feedback-actions">
@@ -344,6 +361,20 @@
       tiles += evidenceItem(data.durationSeconds + "s", "Clip duration") +
         evidenceItem(data.resolution, "Resolution");
       document.getElementById("evidence").innerHTML = tiles;
+
+      var syn = data.synthetic;
+      var proof = document.getElementById("proof");
+      if (syn && (syn.drivers || syn.diagnostics)) {
+        proof.hidden = false;
+        document.getElementById("drivers").innerHTML = renderDrivers(syn.drivers);
+        document.getElementById("diagnostics").innerHTML = renderDiagnostics(syn.diagnostics);
+        document.getElementById("diag-frame").textContent =
+          syn.diagnosticFrame !== null && syn.diagnosticFrame !== undefined
+            ? "· frame at " + syn.diagnosticFrame + "s"
+            : "";
+      } else {
+        proof.hidden = true;
+      }
 
       var evidence = data.evidence || [];
       framesGrid.innerHTML = evidence.map(renderEvidenceCard).join("");

@@ -87,6 +87,20 @@
 
         <div class="signals" id="signals"></div>
 
+        <div id="proof" hidden>
+          <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">What decided this verdict</h3>
+          <p style="font-size:0.85rem; color:var(--ink-3); margin-bottom:12px;">
+            Ranked by how much each signal actually moved the result.
+          </p>
+          <div class="drivers" id="drivers"></div>
+
+          <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">See it for yourself</h3>
+          <p style="font-size:0.85rem; color:var(--ink-3); margin-bottom:4px;">
+            The most suspicious frame, rendered three ways.
+          </p>
+          <div class="diagnostics" id="diagnostics"></div>
+        </div>
+
         <div class="feedback" id="feedback">
           <div class="feedback__question" id="feedback-question">Was this verdict correct?</div>
           <div class="feedback__actions" id="feedback-actions">
@@ -345,6 +359,16 @@
       previewNote.textContent = data.preview.converted
         ? "Converted from " + data.preview.sourceVideoCodec + " to H.264 for playback"
         : "";
+    }
+
+    var syn = data.video && data.video.synthetic;
+    var proof = document.getElementById("proof");
+    if (syn && (syn.drivers || syn.diagnostics)) {
+      proof.hidden = false;
+      document.getElementById("drivers").innerHTML = renderDrivers(syn.drivers);
+      document.getElementById("diagnostics").innerHTML = renderDiagnostics(syn.diagnostics);
+    } else {
+      proof.hidden = true;
     }
 
     var evidence = (data.video && data.video.evidence) || [];
