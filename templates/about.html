@@ -30,10 +30,10 @@
         <div class="feature__icon"><i class="fa-solid fa-clapperboard"></i></div>
         <h3>Video detection</h3>
         <p>
-          Twenty frames are sampled evenly across the clip. MTCNN locates faces, each face is
-          resized to 100&times;100, and a ResNet50 + EfficientNetB0 ensemble scores it. The two
-          backbones look for different artefacts &mdash; blending seams at the jaw and hairline,
-          and texture that is too uniform across the skin.
+          Frames are sampled across the clip and compared against each other. The model measures
+          how the picture moves: whether fast motion blurs the way a shutter blurs it, whether
+          sensor grain is regenerated each frame or baked into the content, whether edges track
+          their objects. None of this depends on a face being present.
         </p>
       </article>
     </div>
@@ -57,7 +57,9 @@
         </thead>
         <tbody>
           <tr><td>SceneFake</td><td>Audio, 16 kHz WAV</td><td>11,407</td><td>47,367</td><td>Voice detector</td></tr>
-          <tr><td>DFDV</td><td>Video, MP4</td><td>49</td><td>50</td><td>Face-swap detector</td></tr>
+          <tr><td>DFDV</td><td>Video, MP4</td><td>49</td><td>50</td><td>Real footage for the video model</td></tr>
+          <tr><td>Gen_videos</td><td>Video, MP4</td><td>&mdash;</td><td>1,300 across 10 generators</td><td>Video model (Sora, Veo 3, Hunyuan, LTX-2, Wan)</td></tr>
+          <tr><td>UCF101</td><td>Video, AVI</td><td>407</td><td>&mdash;</td><td>Real footage for the video model</td></tr>
           <tr><td>AI-Generated vs Real Images</td><td>Images</td><td>71,536</td><td>81,174</td><td>Generation detector</td></tr>
         </tbody>
       </table>
@@ -66,10 +68,9 @@
     <div class="card card--pad reveal" style="margin-top:20px;">
       <h3 style="font-size:1.1rem; margin-bottom:8px;">The three checks, and what each measures</h3>
       <p style="color:var(--ink-2); font-size:0.95rem; margin-bottom:18px;">
-        A swapped face and a fully generated scene are different problems. A face-swap detector
-        looks for the seam where one face was pasted onto another &mdash; but a generated scene has
-        no seam, because nothing was pasted. It is synthetic all the way through. That is why the
-        second check exists.
+        None of these look for faces. A clip is judged on whether it behaves like footage from a
+        camera, so a landscape, an animation or an empty room is assessed exactly the same way as
+        a person talking.
       </p>
       <table class="split-table">
         <thead>
@@ -77,14 +78,14 @@
         </thead>
         <tbody>
           <tr>
-            <td>Face swapping</td>
-            <td>MTCNN face detection, then a ResNet50 + EfficientNetB0 ensemble on each crop</td>
-            <td>A real video with someone else's face pasted in</td>
+            <td>Motion and timing</td>
+            <td>16 measurements comparing frames against each other &mdash; optical-flow warping, sensor-noise correlation, edge stability, the relationship between motion and sharpness</td>
+            <td>Generated footage, whether or not anyone appears in it</td>
           </tr>
           <tr>
-            <td>AI generation</td>
-            <td>22 forensic measurements fused by a gradient-boosted classifier, alongside a pretrained diffusion classifier</td>
-            <td>Footage generated outright, with or without a face</td>
+            <td>Texture and noise</td>
+            <td>22 pixel-level measurements fused with a CLIP embedding by a gradient-boosted classifier</td>
+            <td>Generated stills, and generated frames within a clip</td>
           </tr>
           <tr>
             <td>Voice</td>
@@ -160,8 +161,8 @@
     </div>
     <div class="grid grid--3">
       <article class="card feature reveal">
-        <h3 style="font-size:1rem;">It needs a visible face</h3>
-        <p>The video model scores faces, not scenes. A clip with no detectable face cannot be judged.</p>
+        <h3 style="font-size:1rem;">Still images are much weaker than video</h3>
+        <p>A single frame offers no motion to inspect. Video reaches 0.931 on an unseen generator; stills only 0.573.</p>
       </article>
       <article class="card feature reveal">
         <h3 style="font-size:1rem;">Accuracy is dataset-bound</h3>

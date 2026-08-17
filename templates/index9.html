@@ -66,9 +66,9 @@
         <div class="feature__icon"><i class="fa-solid fa-clapperboard"></i></div>
         <h3>Video pipeline</h3>
         <p>
-          Twenty frames are sampled across the clip. MTCNN locates every face, and a ResNet50 +
-          EfficientNetB0 ensemble scores each one for the blending and texture artefacts that
-          face-swapping leaves behind.
+          Frames are compared against each other for the things generators get wrong over time:
+          motion that never blurs, grain baked into the picture instead of regenerated each frame,
+          edges that shimmer. A scene with no people in it is judged the same way.
         </p>
       </article>
 
@@ -76,9 +76,9 @@
         <div class="feature__icon"><i class="fa-solid fa-list-check"></i></div>
         <h3>Evidence, not verdicts</h3>
         <p>
-          Each result shows how many faces were checked, how they split between authentic and
-          manipulated, the confidence behind each one, and exactly which rule produced the final
-          answer.
+          Each result shows which signals fired, how far each measurement sat from normal, and the
+          forensic images behind the verdict &mdash; so you can check the reasoning rather than
+          take the answer on trust.
         </p>
       </article>
     </div>

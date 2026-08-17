@@ -6,7 +6,7 @@
   <div class="shell">
     <h1>Video <span class="hero__accent">analysis</span></h1>
     <p>
-      Deep Shield samples 20 frames across your clip, finds every face, and scores each one.
+      Deep Shield compares frames against each other to judge whether the footage behaves like a camera recorded it. It does not need a face.
       Most clips finish in 10&ndash;20 seconds, and you will see each stage as it happens.
     </p>
   </div>
@@ -49,8 +49,8 @@
           <div class="progress__steps">
             <span class="pstep" data-at="3"><span class="pstep__dot"></span>Upload</span>
             <span class="pstep" data-at="6"><span class="pstep__dot"></span>Decode</span>
-            <span class="pstep" data-at="30"><span class="pstep__dot"></span>Face detection</span>
-            <span class="pstep" data-at="60"><span class="pstep__dot"></span>Classification</span>
+            <span class="pstep" data-at="30"><span class="pstep__dot"></span>Motion</span>
+            <span class="pstep" data-at="60"><span class="pstep__dot"></span>Texture</span>
             <span class="pstep" data-at="92"><span class="pstep__dot"></span>Verdict</span>
           </div>
         </div>
@@ -116,13 +116,13 @@
         </div>
 
         <div class="readme" id="video-info" hidden>
-          Two independent checks run on every clip. The <strong>face-swap</strong> check scores each
-          face it finds for the blending artefacts left by swapping one face onto another; a clip is
-          flagged once at least <strong id="threshold-note">5</strong> faces look synthetic. The
-          <strong>AI-generation</strong> check ignores faces entirely and instead measures the
-          texture, sensor noise and frequency signature of the footage itself, because a fully
-          generated scene has no face to swap &mdash; it is synthetic all the way through. Either
-          check alone is enough to raise a flag, and the two agreeing is the strongest signal.
+          Neither check looks for faces. A clip is judged on whether it behaves like footage from a
+          camera. <strong>Motion and timing</strong> compares frames against each other: whether
+          fast movement blurs the way a shutter blurs it, whether sensor grain is regenerated each
+          frame or baked into the picture, whether edges track their objects or shimmer.
+          <strong>Texture and noise</strong> measures the pixels themselves &mdash; the noise floor,
+          the frequency signature, how sharpness is distributed. A scene with no people in it is
+          judged exactly the same way as one full of them.
         </div>
       </div>
 
@@ -236,15 +236,16 @@
 
   function renderSignals(data) {
     var s = data.synthetic;
-    var faceDetail = data.faceVerdict === null
-      ? "No face was found to check."
-      : data.fakeFaces + " of " + data.analysedFaces + " faces showed swap artefacts.";
+    var motion = s && s.motion;
+    var motionDetail = motion
+      ? motion.confidence + "% confident, from how the picture moves across " + motion.framesUsed + " frames"
+      : "The motion model was unavailable for this run.";
     var genDetail = s
-      ? s.confidence + "% confident, from " + s.framesChecked + " frames of texture, noise and frequency analysis."
+      ? s.confidence + "% confident, from texture, noise and frequency across " + s.framesChecked + " frames"
       : "The generation model was unavailable for this run.";
     document.getElementById("signals").innerHTML =
-      signalCard("Face swapping", "fa-user-pen", data.faceVerdict, faceDetail) +
-      signalCard("AI generation", "fa-wand-magic-sparkles", s ? s.verdict : null, genDetail);
+      signalCard("Motion and timing", "fa-wave-square", motion ? motion.verdict : null, motionDetail) +
+      signalCard("Texture and noise", "fa-wand-magic-sparkles", s ? s.verdict : null, genDetail);
   }
 
   var currentJobId = null;
@@ -327,36 +328,33 @@
         '<i class="fa-solid ' + (fake ? "fa-triangle-exclamation" : "fa-circle-check") + '"></i> ' +
         (fake ? "MANIPULATED" : "AUTHENTIC");
       document.getElementById("verdict-headline").textContent = fake
-        ? "This video shows signs of deepfake manipulation."
-        : "No meaningful signs of manipulation were found.";
+        ? "This video looks generated rather than filmed."
+        : "This video looks camera-captured.";
       document.getElementById("verdict-reason").textContent = data.reason;
       document.getElementById("threshold-note").textContent = data.threshold;
 
       var meter = document.querySelector("#verdict .meter");
-      if (data.analysedFaces > 0) {
+      var prob = data.synthetic ? data.synthetic.probability : null;
+      if (prob !== null && prob !== undefined) {
+        var genShare = Math.round(prob * 100);
         meter.hidden = false;
-        document.getElementById("meter-fake").textContent =
-          data.fakeFaces + " manipulated (" + data.fakeShare + "%)";
-        document.getElementById("meter-real").textContent = data.realFaces + " authentic";
-        document.getElementById("meter-fake-bar").style.width = data.fakeShare + "%";
-        document.getElementById("meter-real-bar").style.width = (100 - data.fakeShare) + "%";
+        document.getElementById("meter-fake").textContent = genShare + "% generated";
+        document.getElementById("meter-real").textContent = (100 - genShare) + "% camera";
+        document.getElementById("meter-fake-bar").style.width = genShare + "%";
+        document.getElementById("meter-real-bar").style.width = (100 - genShare) + "%";
       } else {
         meter.hidden = true;
       }
 
       var tiles = "";
-      if (data.analysedFaces > 0) {
-        tiles += evidenceItem(data.analysedFaces, "Faces analysed") +
-          evidenceItem(data.framesWithFace + " / " + data.framesSampled, "Frames with a face") +
-          evidenceItem(data.averageConfidence + "%", "Face confidence");
-      } else {
-        tiles += evidenceItem("None", "Faces found");
+      var mo = data.synthetic && data.synthetic.motion;
+      if (mo) {
+        tiles += evidenceItem(mo.confidence + "%", "Motion confidence") +
+          evidenceItem(mo.framesUsed, "Frames compared");
       }
       if (data.synthetic) {
-        tiles += evidenceItem(data.synthetic.confidence + "%", "Generation confidence");
-        if (data.synthetic.generationScore !== null) {
-          tiles += evidenceItem(data.synthetic.generationScore + "%", "Diffusion model score");
-        }
+        tiles += evidenceItem(data.synthetic.confidence + "%", "Overall confidence") +
+          evidenceItem(data.synthetic.framesChecked, "Frames measured");
       }
       tiles += evidenceItem(data.durationSeconds + "s", "Clip duration") +
         evidenceItem(data.resolution, "Resolution");

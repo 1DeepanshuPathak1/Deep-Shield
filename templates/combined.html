@@ -70,7 +70,7 @@
             <span class="pstep" data-at="4"><span class="pstep__dot"></span>Fetch</span>
             <span class="pstep" data-at="14"><span class="pstep__dot"></span>Convert</span>
             <span class="pstep" data-at="22"><span class="pstep__dot"></span>Audio</span>
-            <span class="pstep" data-at="40"><span class="pstep__dot"></span>Faces</span>
+            <span class="pstep" data-at="40"><span class="pstep__dot"></span>Motion</span>
             <span class="pstep" data-at="95"><span class="pstep__dot"></span>Verdict</span>
           </div>
         </div>
@@ -127,13 +127,13 @@
         </div>
 
         <div class="readme" id="combined-info" hidden>
-          Three independent checks run, and none sees the others' answer. <strong>Face swapping</strong>
-          scores each face across 20 sampled frames for blending artefacts. <strong>AI generation</strong>
-          ignores faces and measures the texture, sensor noise and frequency signature of the footage
-          itself &mdash; this is what catches a fully generated scene, which has no face to swap.
-          <strong>Audio</strong> measures 17 acoustic properties and puts them to a vote across 100
-          decision trees. Agreement between checks raises confidence; a single flag usually means a
-          partial edit, such as real footage given a cloned voice.
+          Two independent checks run on the picture, and neither looks for faces.
+          <strong>Motion and timing</strong> measures how the image moves between frames &mdash;
+          whether motion blurs the way a shutter blurs it, whether grain is regenerated each frame,
+          whether edges track their objects. <strong>Texture and noise</strong> measures the pixels
+          themselves. <strong>Audio</strong> is judged separately by 100 decision trees over 17
+          acoustic properties. Agreement raises confidence; a single flag usually means a partial
+          edit, such as real footage given a cloned voice.
         </div>
       </div>
 
@@ -211,9 +211,15 @@
         '"></i> ' + title + '</div><p class="track__empty">No ' + kind + ' track was found in this file.</p></div>';
     }
     var fake = data.verdict === "Fake";
-    var detail = kind === "audio"
-      ? (data.votes ? data.votes.fake + " of " + data.votes.total + " trees said synthetic" : "")
-      : data.fakeFaces + " of " + data.analysedFaces + " faces looked manipulated";
+    var detail;
+    if (kind === "audio") {
+      detail = data.votes ? data.votes.fake + " of " + data.votes.total + " trees said synthetic" : "";
+    } else {
+      var m = data.synthetic && data.synthetic.motion;
+      detail = m
+        ? "from motion, noise and texture across " + m.framesUsed + " frames"
+        : "from texture, noise and frequency across the sampled frames";
+    }
     return '<div class="track ' + (fake ? "track--fake" : "track--real") + '">' +
       '<div class="track__head"><i class="fa-solid ' + icon + '"></i> ' + title + '</div>' +
       '<div class="track__verdict">' + (fake ? "Manipulated" : "Authentic") + "</div>" +
@@ -317,17 +323,16 @@
 
     var video = data.video;
     var syn = video ? video.synthetic : null;
-    var faceDetail = !video
-      ? "No visual track was analysed."
-      : video.faceVerdict === null
-        ? "No face was found to check."
-        : video.fakeFaces + " of " + video.analysedFaces + " faces showed swap artefacts.";
+    var motion = syn && syn.motion;
+    var motionDetail = motion
+      ? motion.confidence + "% confident, from how the picture moves across " + motion.framesUsed + " frames"
+      : "The motion model was unavailable for this run.";
     var genDetail = syn
-      ? syn.confidence + "% confident, from " + syn.framesChecked + " frames of texture, noise and frequency analysis."
+      ? syn.confidence + "% confident, from texture, noise and frequency across " + syn.framesChecked + " frames"
       : "The generation model was unavailable for this run.";
     document.getElementById("signals").innerHTML =
-      signalCard("Face swapping", "fa-user-pen", video ? video.faceVerdict : null, faceDetail) +
-      signalCard("AI generation", "fa-wand-magic-sparkles", syn ? syn.verdict : null, genDetail);
+      signalCard("Motion and timing", "fa-wave-square", motion ? motion.verdict : null, motionDetail) +
+      signalCard("Texture and noise", "fa-wand-magic-sparkles", syn ? syn.verdict : null, genDetail);
 
     var combined = data.combined;
     var fake = combined.verdict === "Fake";
