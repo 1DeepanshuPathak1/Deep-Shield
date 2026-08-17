@@ -5,7 +5,9 @@ import cv2
 import joblib
 import numpy as np
 
+import explain
 import forensics
+import visuals
 
 BACKBONES = [
     "Organika/sdxl-detector",
@@ -67,6 +69,8 @@ def _load_fusion():
                 "features": payload.get("features"),
                 "thresholds": payload.get("thresholds"),
                 "backbones": payload.get("backbones"),
+                "baseline": payload.get("baseline"),
+                "stats": payload.get("stats"),
             }
         except Exception:
             _fusion = None
@@ -83,7 +87,9 @@ def reload_fusion():
 def fusion_info():
     _load_fusion()
     return {
-        k: v for k, v in _fusion_meta.items() if k not in ("features", "thresholds")
+        k: v
+        for k, v in _fusion_meta.items()
+        if k not in ("features", "thresholds", "baseline", "stats")
     }
 
 
@@ -202,6 +208,21 @@ def _tells(features):
     return found
 
 
+def _drivers(features):
+    fusion = _load_fusion()
+    if fusion is None:
+        return []
+    names = _expected_features()
+    baseline = _fusion_meta.get("baseline")
+    stats = _fusion_meta.get("stats") or {}
+    if not baseline:
+        return []
+    _, findings = explain.attribute(fusion, names, features, baseline, stats)
+    for entry in findings:
+        entry["sentence"] = explain.sentence(entry)
+    return findings
+
+
 def analyse_image(frame_bgr):
     scores = generation_scores(frame_bgr)
     mean_score = float(np.mean(list(scores.values()))) if scores else 0.0
@@ -222,6 +243,8 @@ def analyse_image(frame_bgr):
         "modelScores": {k: round(100.0 * v, 1) for k, v in scores.items()},
         "features": {k: float(v) for k, v in features.items()},
         "tells": _tells(features),
+        "drivers": _drivers(features),
+        "diagnostics": visuals.diagnostics(frame_bgr),
         "usingFusion": probability is not None,
         "model": fusion_info(),
     }
@@ -316,6 +339,11 @@ def analyse_frames(frames, timestamps=None):
             else ("Fake" if frame_probability >= 0.5 else "Real")
         )
 
+    strongest = max(
+        range(len(per_frame)),
+        key=lambda i: per_frame[i]["probability"] or 0.0,
+    ) if per_frame else 0
+
     return {
         "verdict": verdict,
         "confidence": confidence,
@@ -324,6 +352,9 @@ def analyse_frames(frames, timestamps=None):
         "features": averaged,
         "perFrame": per_frame,
         "tells": _tells(averaged),
+        "drivers": _drivers(averaged),
+        "diagnostics": visuals.diagnostics(sampled[strongest]) if sampled else [],
+        "diagnosticFrame": per_frame[strongest]["timestamp"] if per_frame else None,
         "modelScores": {k: round(100.0 * v, 1) for k, v in scores_mean.items()},
         "usingFusion": probability is not None,
         "model": fusion_info(),
