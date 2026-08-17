@@ -101,11 +101,34 @@
   }
 })();
 
-function renderDrivers(list) {
+function renderCoverage(cov) {
+  if (!cov || cov.reliable) return "";
+  var items = (cov.worst || [])
+    .map(function (w) {
+      return "<li><strong>" + w.title + "</strong> measured " + w.value +
+        ", outside the trained range of " + w.low + " to " + w.high + "</li>";
+    })
+    .join("");
+  return (
+    '<div class="coverage"><div class="coverage__head">' +
+    '<i class="fa-solid fa-triangle-exclamation"></i>This verdict is unreliable</div>' +
+    '<div class="coverage__body">' + cov.outsideCount + " of " + cov.checked +
+    " measurements (" + cov.share + "%) fall outside the range this model was trained on, " +
+    "so it is extrapolating rather than recognising. Treat the verdict below as unsupported." +
+    "<ul class=\"coverage__list\">" + items + "</ul></div></div>"
+  );
+}
+
+function renderDrivers(list, total) {
   if (!list || !list.length) {
     return '<p style="color:var(--ink-3); font-size:0.86rem;">No single signal dominated this result.</p>';
   }
-  return list
+  var note =
+    '<p class="note">Each figure is that signal’s effect on its own, measured by replacing it ' +
+    'with a typical value and seeing how far the result moves. They do not add up to the verdict: ' +
+    'the model is non-linear, and these are the ' + list.length + ' largest of ' + (total || list.length) +
+    ' measurements.</p>';
+  return note + list
     .map(function (d) {
       var sign = d.impact > 0 ? "+" : "";
       var gauge = "";

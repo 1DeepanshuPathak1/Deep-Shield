@@ -109,6 +109,46 @@ def _percentile_of(value, quantiles):
     return 50.0
 
 
+def coverage(feature_names, values, stats):
+    checked = 0
+    outside = []
+    for name in feature_names:
+        info = stats.get(name) or {}
+        real_q = info.get("real_q")
+        ai_q = info.get("ai_q")
+        if not real_q or not ai_q:
+            continue
+        low = min(real_q[0], ai_q[0])
+        high = max(real_q[-1], ai_q[-1])
+        span = (high - low) or 1.0
+        value = float(values.get(name, 0.0))
+        checked += 1
+        if value < low or value > high:
+            distance = (low - value) / span if value < low else (value - high) / span
+            title = READABLE.get(name, (name.replace("_", " "), ""))[0]
+            outside.append(
+                {
+                    "key": name,
+                    "title": title,
+                    "value": round(value, 4),
+                    "low": round(low, 4),
+                    "high": round(high, 4),
+                    "distance": round(distance, 2),
+                }
+            )
+    if not checked:
+        return None
+    outside.sort(key=lambda e: -e["distance"])
+    share = len(outside) / checked
+    return {
+        "checked": checked,
+        "outsideCount": len(outside),
+        "share": round(100.0 * share, 1),
+        "reliable": share < 0.34,
+        "worst": outside[:5],
+    }
+
+
 def attribute(model, feature_names, values, baseline, stats, top=6):
     vector = np.array([[float(values.get(n, 0.0)) for n in feature_names]])
     vector = np.nan_to_num(vector, nan=0.0, posinf=0.0, neginf=0.0)

@@ -192,7 +192,8 @@
         evidenceItem(data.resolution, "Resolution") +
         evidenceItem(data.faces, "Faces found");
 
-      document.getElementById("drivers").innerHTML = renderDrivers(data.drivers);
+      document.getElementById("drivers").innerHTML =
+        renderCoverage(data.coverage) + renderDrivers(data.drivers, data.featureCount);
       document.getElementById("diagnostics").innerHTML = renderDiagnostics(data.diagnostics);
 
       document.getElementById("tells").innerHTML = data.tells

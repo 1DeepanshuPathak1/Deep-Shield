@@ -366,7 +366,8 @@
       var proof = document.getElementById("proof");
       if (syn && (syn.drivers || syn.diagnostics)) {
         proof.hidden = false;
-        document.getElementById("drivers").innerHTML = renderDrivers(syn.drivers);
+        document.getElementById("drivers").innerHTML =
+          renderCoverage(syn.coverage) + renderDrivers(syn.drivers, syn.featureCount);
         document.getElementById("diagnostics").innerHTML = renderDiagnostics(syn.diagnostics);
         document.getElementById("diag-frame").textContent =
           syn.diagnosticFrame !== null && syn.diagnosticFrame !== undefined

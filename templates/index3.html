@@ -188,7 +188,7 @@
         evidenceItem(data.featureCount, "Acoustic features") +
         evidenceItem(votes ? Math.max(votes.fake, votes.real) + " / " + votes.total : "n/a", "Majority size");
 
-      document.getElementById("drivers").innerHTML = renderDrivers(data.drivers);
+      document.getElementById("drivers").innerHTML = renderDrivers(data.drivers, 17);
       document.getElementById("diagnostics").innerHTML = renderDiagnostics(data.diagnostics);
 
       document.getElementById("contrib-body").innerHTML = data.contributions

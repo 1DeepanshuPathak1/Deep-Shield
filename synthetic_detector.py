@@ -223,6 +223,15 @@ def _drivers(features):
     return findings
 
 
+def _coverage(features):
+    _load_fusion()
+    names = _expected_features()
+    stats = _fusion_meta.get("stats") or {}
+    if not stats:
+        return None
+    return explain.coverage(names, features, stats)
+
+
 def _clip_probability(frame_bgr, features):
     try:
         import clip_probe
@@ -267,6 +276,8 @@ def analyse_image(frame_bgr):
         "features": {k: float(v) for k, v in features.items()},
         "tells": _tells(features),
         "drivers": _drivers(features),
+        "coverage": _coverage(features),
+        "featureCount": len(_expected_features()),
         "diagnostics": visuals.diagnostics(frame_bgr),
         "usingFusion": probability is not None,
         "model": fusion_info(),
@@ -376,6 +387,8 @@ def analyse_frames(frames, timestamps=None):
         "perFrame": per_frame,
         "tells": _tells(averaged),
         "drivers": _drivers(averaged),
+        "coverage": _coverage(averaged),
+        "featureCount": len(_expected_features()),
         "diagnostics": visuals.diagnostics(sampled[strongest]) if sampled else [],
         "diagnosticFrame": per_frame[strongest]["timestamp"] if per_frame else None,
         "modelScores": {k: round(100.0 * v, 1) for k, v in scores_mean.items()},

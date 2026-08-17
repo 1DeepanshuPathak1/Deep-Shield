@@ -813,6 +813,51 @@ p {
   background: var(--s1);
 }
 
+.coverage {
+  margin: 18px 0;
+  padding: 16px 18px;
+  border-radius: var(--r-md);
+  border: 1px solid color-mix(in srgb, var(--warn, #d98324) 45%, var(--line));
+  background: color-mix(in srgb, #d98324 12%, var(--surface-2));
+}
+
+.coverage__head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-weight: 680;
+  font-size: 0.94rem;
+  margin-bottom: 7px;
+}
+
+.coverage__head i {
+  color: #e0952f;
+}
+
+.coverage__body {
+  font-size: 0.87rem;
+  color: var(--ink-2);
+  line-height: 1.55;
+}
+
+.coverage__list {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 0.82rem;
+  color: var(--ink-3);
+}
+
+.coverage__list li {
+  margin-bottom: 3px;
+}
+
+.note {
+  margin-top: 10px;
+  font-size: 0.78rem;
+  color: var(--ink-3);
+  line-height: 1.5;
+}
+
 .drivers {
   display: grid;
   gap: 10px;
