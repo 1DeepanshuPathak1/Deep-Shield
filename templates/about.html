@@ -53,13 +53,58 @@
     <div class="card card--pad reveal" style="overflow-x:auto;">
       <table class="split-table">
         <thead>
-          <tr><th>Dataset</th><th>Medium</th><th>Authentic</th><th>Manipulated</th><th>Size</th></tr>
+          <tr><th>Dataset</th><th>Medium</th><th>Authentic</th><th>Generated</th><th>Used for</th></tr>
         </thead>
         <tbody>
-          <tr><td>SceneFake</td><td>Audio (16 kHz WAV)</td><td>11,407</td><td>47,367</td><td>5.95 GB</td></tr>
-          <tr><td>DFDV</td><td>Video (MP4)</td><td>49</td><td>50</td><td>0.14 GB</td></tr>
+          <tr><td>SceneFake</td><td>Audio, 16 kHz WAV</td><td>11,407</td><td>47,367</td><td>Voice detector</td></tr>
+          <tr><td>DFDV</td><td>Video, MP4</td><td>49</td><td>50</td><td>Face-swap detector</td></tr>
+          <tr><td>AI-Generated vs Real Images</td><td>Images</td><td>71,536</td><td>81,174</td><td>Generation detector</td></tr>
         </tbody>
       </table>
+    </div>
+
+    <div class="card card--pad reveal" style="margin-top:20px;">
+      <h3 style="font-size:1.1rem; margin-bottom:8px;">The three checks, and what each measures</h3>
+      <p style="color:var(--ink-2); font-size:0.95rem; margin-bottom:18px;">
+        A swapped face and a fully generated scene are different problems. A face-swap detector
+        looks for the seam where one face was pasted onto another &mdash; but a generated scene has
+        no seam, because nothing was pasted. It is synthetic all the way through. That is why the
+        second check exists.
+      </p>
+      <table class="split-table">
+        <thead>
+          <tr><th>Check</th><th>Method</th><th>Catches</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Face swapping</td>
+            <td>MTCNN face detection, then a ResNet50 + EfficientNetB0 ensemble on each crop</td>
+            <td>A real video with someone else's face pasted in</td>
+          </tr>
+          <tr>
+            <td>AI generation</td>
+            <td>22 forensic measurements fused by a gradient-boosted classifier, alongside a pretrained diffusion classifier</td>
+            <td>Footage generated outright, with or without a face</td>
+          </tr>
+          <tr>
+            <td>Voice</td>
+            <td>17 acoustic features voted on by 100 decision trees</td>
+            <td>Cloned or synthesised speech</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="readme">
+        <strong>What the generation check actually measures.</strong> A camera and a generative
+        model leave different fingerprints in the pixels. Real footage carries sensor noise,
+        lens blur that varies across the frame, and a frequency spectrum that falls away
+        irregularly. Generated footage tends to be too clean and too even: sharper edges than
+        optics produce, an unnaturally smooth noise floor, high-frequency detail that is
+        over-represented because the image was upsampled, and sharpness that is suspiciously
+        uniform across the whole frame rather than varying with depth. The check also tests the
+        distribution of DCT coefficients against Benford's law, which real photographs follow
+        and generated images often do not.
+      </div>
     </div>
 
     <div class="card card--pad reveal" style="margin-top:20px;">

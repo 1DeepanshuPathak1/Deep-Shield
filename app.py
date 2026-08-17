@@ -169,6 +169,7 @@ def scan_video(video_path, job_id=None, base=5, span=70):
     targets = np.linspace(0, total_frames - 1, SAMPLE_FRAMES, dtype=int)
     frames = []
     raw_frames = []
+    frame_times = []
     real_faces = 0
     fake_faces = 0
     frames_without_face = 0
@@ -187,6 +188,7 @@ def scan_video(video_path, job_id=None, base=5, span=70):
             continue
 
         raw_frames.append(frame)
+        frame_times.append(round(float(target) / fps, 2))
         detections = detector.detect_faces(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
         if not detections:
             frames_without_face += 1
@@ -252,8 +254,28 @@ def scan_video(video_path, job_id=None, base=5, span=70):
     capture.release()
 
     if job_id:
-        update_job(job_id, stage="Checking for AI generation", progress=base + span)
-    synthetic = synthetic_detector.analyse_frames(raw_frames)
+        update_job(job_id, stage="Measuring generation artefacts", progress=base + span)
+    synthetic = synthetic_detector.analyse_frames(raw_frames, frame_times)
+
+    evidence = []
+    if synthetic and synthetic.get("perFrame"):
+        for entry in synthetic["perFrame"]:
+            index = entry["index"]
+            if index >= len(raw_frames):
+                continue
+            evidence.append(
+                {
+                    "image": encode_jpeg(raw_frames[index]),
+                    "timestamp": entry.get("timestamp"),
+                    "verdict": entry.get("verdict"),
+                    "probability": entry.get("probability"),
+                    "sharpness": entry.get("sharpness"),
+                    "noise": entry.get("noise"),
+                    "highFreq": entry.get("highFreq"),
+                    "temporalDelta": entry.get("temporalDelta"),
+                    "modelScore": entry.get("modelScore"),
+                }
+            )
 
     analysed_faces = real_faces + fake_faces
 
@@ -320,6 +342,7 @@ def scan_video(video_path, job_id=None, base=5, span=70):
         "faceVerdict": face_verdict,
         "faceReason": face_reason,
         "synthetic": synthetic,
+        "evidence": evidence,
         "fakeFaces": fake_faces,
         "realFaces": real_faces,
         "analysedFaces": analysed_faces,
@@ -624,6 +647,54 @@ def api_analyze_youtube():
     return jsonify({"jobId": job_id})
 
 
+@app.route("/image")
+def image_page():
+    return render_template("image.html", active="image")
+
+
+def analyse_image_job(job_id, image_path):
+    try:
+        update_job(job_id, status="running", stage="Decoding image", progress=12)
+        frame = cv2.imread(image_path)
+        if frame is None:
+            raise MediaError("That image could not be decoded.")
+
+        height, width = frame.shape[:2]
+        update_job(job_id, stage="Running generation models", progress=35)
+        result = synthetic_detector.analyse_image(frame)
+        if result is None:
+            raise MediaError("The generation models were unavailable for this run.")
+
+        update_job(job_id, stage="Measuring forensic signals", progress=78)
+        faces = 0
+        try:
+            faces = len(detector.detect_faces(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+        except Exception:
+            faces = 0
+
+        result["resolution"] = f"{width}x{height}"
+        result["faces"] = faces
+        result["preview"] = encode_jpeg(frame)
+        update_job(job_id, status="done", stage="Complete", progress=100, result=result)
+    except Exception as exc:
+        update_job(job_id, status="error", stage="Failed", progress=100, error=str(exc))
+    finally:
+        discard(image_path)
+
+
+@app.route("/api/analyze/image", methods=["POST"])
+def api_analyze_image():
+    job_id, error = start_upload_job(
+        analyse_image_job,
+        request.files.get("file"),
+        {"jpg", "jpeg", "png", "webp", "bmp"},
+        "image",
+    )
+    if error:
+        return jsonify({"error": error}), 400
+    return jsonify({"jobId": job_id})
+
+
 @app.route("/api/preview", methods=["POST"])
 def api_preview():
     upload = request.files.get("file")
@@ -676,6 +747,14 @@ def retrain_fusion():
         auc = float(roc_auc_score(y_all, probs))
 
     model.fit(X_all, y_all)
+
+    previous = {}
+    if os.path.exists("fusion_model.pkl"):
+        try:
+            previous = joblib.load("fusion_model.pkl")
+        except Exception:
+            previous = {}
+
     joblib.dump(
         {
             "model": model,
@@ -684,6 +763,8 @@ def retrain_fusion():
             "auc": auc,
             "samples": int(len(X_all)),
             "trained": time.strftime("%Y-%m-%d"),
+            "thresholds": previous.get("thresholds"),
+            "backbones": previous.get("backbones"),
         },
         "fusion_model.pkl",
     )

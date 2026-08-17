@@ -34,6 +34,7 @@
       <nav class="nav__links" id="nav-links">
         <a class="nav__link" href="{{ url_for('index') }}" {% if active == 'home' %}aria-current="page"{% endif %}>Home</a>
         <a class="nav__link" href="{{ url_for('video_page') }}" {% if active == 'video' %}aria-current="page"{% endif %}>Video</a>
+        <a class="nav__link" href="{{ url_for('image_page') }}" {% if active == 'image' %}aria-current="page"{% endif %}>Image</a>
         <a class="nav__link" href="{{ url_for('audio_page') }}" {% if active == 'audio' %}aria-current="page"{% endif %}>Audio</a>
         <a class="nav__link" href="{{ url_for('combined_page') }}" {% if active == 'combined' %}aria-current="page"{% endif %}>Full Analysis</a>
         <a class="nav__link" href="{{ url_for('quiz') }}" {% if active == 'quiz' %}aria-current="page"{% endif %}>Can You Tell?</a>

@@ -24,3 +24,4 @@ Thumbs.db
 feedback.db
 fusion_trainset.npz
 _eval/
+*.log

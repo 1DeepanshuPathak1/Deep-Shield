@@ -767,6 +767,95 @@ p {
   justify-content: space-between;
   gap: 8px;
   padding: 10px 12px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.frame__metrics {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  padding: 0 12px 12px;
+}
+
+.metric {
+  min-width: 0;
+}
+
+.metric__label {
+  font-size: 0.66rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.metric__value {
+  font-size: 0.82rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+
+.metric__bar {
+  margin-top: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--line);
+  overflow: hidden;
+}
+
+.metric__fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--s1);
+}
+
+.tells {
+  display: grid;
+  gap: 8px;
+}
+
+.tell {
+  display: flex;
+  align-items: flex-start;
+  gap: 11px;
+  padding: 12px 14px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+}
+
+.tell i {
+  margin-top: 2px;
+  flex: none;
+}
+
+.tell--hit {
+  border-color: color-mix(in srgb, var(--bad) 40%, var(--line));
+}
+
+.tell--hit i {
+  color: var(--bad);
+}
+
+.tell--miss i {
+  color: var(--ok);
+}
+
+.tell__text {
+  font-size: 0.88rem;
+  color: var(--ink);
+  line-height: 1.45;
+}
+
+.tell__value {
+  margin-top: 2px;
+  font-size: 0.74rem;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
 }
 
 .tag {

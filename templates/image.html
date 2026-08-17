@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Image Detection | Deep Shield{% endblock %}
+
+{% block content %}
+<section class="page-head centered">
+  <div class="shell">
+    <h1>Image <span class="hero__accent">analysis</span></h1>
+    <p>
+      Check whether a still image was generated rather than photographed. This runs the same
+      forensic checks the video pipeline uses, on a single frame.
+    </p>
+  </div>
+</section>
+
+<section class="section" style="padding-top:24px;">
+  <div class="shell">
+    <div class="uploader">
+      <div class="card card--pad">
+        <div class="dropzone" id="dropzone">
+          <input type="file" id="file-input" accept="image/jpeg,image/png,image/webp,image/bmp" />
+          <div class="dropzone__icon"><i class="fa-solid fa-image"></i></div>
+          <div class="dropzone__title">Drop an image here, or click to browse</div>
+          <div class="dropzone__hint">JPG, PNG, WEBP or BMP</div>
+        </div>
+
+        <div class="filechip" id="file-chip">
+          <i class="fa-solid fa-image" style="color:var(--brand-ink)"></i>
+          <span class="filechip__name" id="file-name"></span>
+          <span class="filechip__size" id="file-size"></span>
+        </div>
+
+        <img id="preview" alt="Selected image" style="display:none; margin-top:16px; border-radius:12px; width:100%;" />
+
+        <button class="btn btn--primary btn--block" id="analyse" type="button" style="margin-top:18px;">
+          <i class="fa-solid fa-magnifying-glass"></i> Analyse image
+        </button>
+
+        <div class="alert" id="alert"></div>
+
+        <div class="progress" id="progress">
+          <div class="progress__head">
+            <span class="progress__stage" id="stage">Preparing</span>
+            <span class="progress__pct" id="pct">0%</span>
+          </div>
+          <div class="progress__track"><div class="progress__bar" id="bar"></div></div>
+          <div class="progress__steps">
+            <span class="pstep" data-at="3"><span class="pstep__dot"></span>Upload</span>
+            <span class="pstep" data-at="12"><span class="pstep__dot"></span>Decode</span>
+            <span class="pstep" data-at="35"><span class="pstep__dot"></span>Models</span>
+            <span class="pstep" data-at="78"><span class="pstep__dot"></span>Forensics</span>
+            <span class="pstep" data-at="98"><span class="pstep__dot"></span>Verdict</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="verdict" id="verdict">
+        <div class="verdict__top">
+          <span class="verdict__badge" id="verdict-badge"></span>
+          <span class="verdict__headline" id="verdict-headline"></span>
+        </div>
+
+        <div class="evidence" id="evidence"></div>
+
+        <h3 style="font-size:1rem; margin-top:26px; margin-bottom:4px;">What the image gives away</h3>
+        <p style="font-size:0.85rem; color:var(--ink-3); margin-bottom:12px;">
+          Each line is a measurable property of the pixels. Triggered rows are the ones pointing
+          towards generation.
+        </p>
+        <div class="tells" id="tells"></div>
+
+        <h3 style="font-size:1rem; margin-top:26px; margin-bottom:12px;">Individual model scores</h3>
+        <div style="overflow-x:auto;">
+          <table class="split-table">
+            <thead><tr><th>Model</th><th>Says generated</th></tr></thead>
+            <tbody id="model-body"></tbody>
+          </table>
+        </div>
+
+        <div class="feedback" id="feedback">
+          <div class="feedback__question" id="feedback-question">Was this verdict correct?</div>
+          <div class="feedback__actions" id="feedback-actions">
+            <button class="fb-btn fb-btn--yes" type="button" data-correct="1">
+              <i class="fa-solid fa-thumbs-up"></i> Yes, correct
+            </button>
+            <button class="fb-btn fb-btn--no" type="button" data-correct="0">
+              <i class="fa-solid fa-thumbs-down"></i> No, it got this wrong
+            </button>
+          </div>
+          <p class="feedback__thanks" id="feedback-thanks" hidden></p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  var preview = document.getElementById("preview");
+  var verdictBox = document.getElementById("verdict");
+  var currentJobId = null;
+
+  function evidenceItem(value, label) {
+    return '<div class="evidence__item"><div class="evidence__value">' + value +
+      '</div><div class="evidence__label">' + label + "</div></div>";
+  }
+
+  document.getElementById("feedback-actions").addEventListener("click", function (e) {
+    var button = e.target.closest(".fb-btn");
+    if (!button) return;
+    var correct = button.getAttribute("data-correct") === "1";
+    Array.prototype.forEach.call(
+      document.querySelectorAll("#feedback-actions .fb-btn"),
+      function (b) { b.disabled = true; }
+    );
+    fetch("/api/feedback", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jobId: currentJobId, correct: correct, kind: "image" }),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var thanks = document.getElementById("feedback-thanks");
+        var st = data.stats || {};
+        var msg = correct ? "Thanks — logged as correct."
+                          : "Thanks — logged as a miss. This is the signal the model learns from.";
+        if (data.retrained) {
+          msg += " <strong>The model just retrained</strong> on " + data.retrained.samples + " samples.";
+        } else if (st.untilRetrain) {
+          msg += " " + st.untilRetrain + " more before the next retrain.";
+        }
+        thanks.innerHTML = msg;
+        thanks.hidden = false;
+        document.getElementById("feedback-actions").hidden = true;
+        document.getElementById("feedback-question").hidden = true;
+      });
+  });
+
+  createAnalyser({
+    endpoint: "/api/analyze/image",
+    inputId: "file-input",
+    dropzoneId: "dropzone",
+    chipId: "file-chip",
+    chipNameId: "file-name",
+    chipSizeId: "file-size",
+    submitId: "analyse",
+    progressId: "progress",
+    barId: "bar",
+    stageId: "stage",
+    pctId: "pct",
+    alertId: "alert",
+    onSelect: function (file) {
+      preview.src = URL.createObjectURL(file);
+      preview.style.display = "block";
+      verdictBox.classList.remove("is-on");
+    },
+    onResult: function (data, jobId) {
+      currentJobId = jobId;
+      document.getElementById("feedback-actions").hidden = false;
+      document.getElementById("feedback-question").hidden = false;
+      document.getElementById("feedback-thanks").hidden = true;
+      Array.prototype.forEach.call(
+        document.querySelectorAll("#feedback-actions .fb-btn"),
+        function (b) { b.disabled = false; }
+      );
+
+      var fake = data.verdict === "Fake";
+      verdictBox.className = "verdict is-on " + (fake ? "verdict--fake" : "verdict--real");
+      document.getElementById("verdict-badge").innerHTML =
+        '<i class="fa-solid ' + (fake ? "fa-triangle-exclamation" : "fa-circle-check") + '"></i> ' +
+        (fake ? "AI GENERATED" : "LOOKS PHOTOGRAPHED");
+      document.getElementById("verdict-headline").textContent = fake
+        ? "This image shows the signatures of a generative model."
+        : "This image looks camera-captured.";
+
+      var triggered = data.tells.filter(function (t) { return t.triggered; }).length;
+      document.getElementById("evidence").innerHTML =
+        evidenceItem(data.confidence + "%", "Confidence") +
+        evidenceItem(triggered + " / " + data.tells.length, "Signals triggered") +
+        evidenceItem(data.resolution, "Resolution") +
+        evidenceItem(data.faces, "Faces found");
+
+      document.getElementById("tells").innerHTML = data.tells
+        .map(function (t) {
+          return '<div class="tell ' + (t.triggered ? "tell--hit" : "tell--miss") + '">' +
+            '<i class="fa-solid ' + (t.triggered ? "fa-circle-exclamation" : "fa-circle-check") + '"></i>' +
+            '<div><div class="tell__text">' + t.text + "</div>" +
+            '<div class="tell__value">' + t.name + " = " + t.value + "</div></div></div>";
+        })
+        .join("");
+
+      var rows = Object.keys(data.modelScores || {});
+      document.getElementById("model-body").innerHTML = rows.length
+        ? rows.map(function (k) {
+            return "<tr><td>" + k + "</td><td>" + data.modelScores[k] + "%</td></tr>";
+          }).join("")
+        : "<tr><td colspan='2'>No pretrained model was available.</td></tr>";
+
+      verdictBox.scrollIntoView({ behavior: "smooth", block: "start" });
+    },
+  });
+</script>
+{% endblock %}

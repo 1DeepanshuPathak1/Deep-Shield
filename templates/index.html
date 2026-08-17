@@ -112,7 +112,13 @@
       <div class="frames" id="frames" style="display:none;">
         <div class="section__head">
           <h2 style="font-size:1.35rem;">Frame-by-frame evidence</h2>
-          <p style="font-size:0.93rem;">Each thumbnail is a sampled frame with its own verdict and confidence, timestamped to where it occurs in the clip.</p>
+          <p style="font-size:0.93rem;">
+            Measured properties of each sampled frame. <strong>Sharpness</strong> is edge contrast &mdash;
+            generators produce cleaner edges than a lens. <strong>Noise floor</strong> is sensor grain,
+            which generated frames largely lack. <strong>Fine detail</strong> is high-frequency energy,
+            often over-represented in upsampled output. <strong>Frame change</strong> is how much moved
+            since the previous sample; generated video drifts inconsistently.
+          </p>
         </div>
         <div class="frames__grid" id="frames-grid"></div>
       </div>
@@ -175,6 +181,32 @@
   function evidenceItem(value, label) {
     return '<div class="evidence__item"><div class="evidence__value">' + value +
       '</div><div class="evidence__label">' + label + "</div></div>";
+  }
+
+  function metric(label, value, fill) {
+    var bar = fill === null ? "" :
+      '<div class="metric__bar"><div class="metric__fill" style="width:' +
+      Math.max(2, Math.min(100, fill)) + '%"></div></div>';
+    return '<div class="metric"><div class="metric__label">' + label +
+      '</div><div class="metric__value">' + value + "</div>" + bar + "</div>";
+  }
+
+  function renderEvidenceCard(f) {
+    var cls = f.verdict === "Fake" ? "tag--fake" : "tag--real";
+    var label = f.verdict ? f.verdict.toUpperCase() : "SCORED";
+    var pct = f.probability === null ? "" : " " + Math.round(f.probability * 100) + "%";
+    var time = f.timestamp === null ? "" :
+      '<span class="frame__time">' + f.timestamp + "s</span>";
+    return '<figure class="frame">' +
+      '<img class="frame__img" loading="lazy" src="' + f.image + '" alt="Sampled frame" />' +
+      '<figcaption class="frame__meta"><span class="tag ' + cls + '">' + label + pct + "</span>" +
+      time + "</figcaption>" +
+      '<div class="frame__metrics">' +
+        metric("Sharpness", f.sharpness, Math.min(100, f.sharpness / 20)) +
+        metric("Noise floor", f.noise, Math.min(100, f.noise * 18)) +
+        metric("Fine detail", f.highFreq, Math.min(100, f.highFreq * 400)) +
+        metric("Frame change", f.temporalDelta, Math.min(100, f.temporalDelta * 8)) +
+      "</div></figure>";
   }
 
   function signalCard(title, icon, verdict, detail) {
@@ -313,19 +345,9 @@
         evidenceItem(data.resolution, "Resolution");
       document.getElementById("evidence").innerHTML = tiles;
 
-      framesGrid.innerHTML = data.frames
-        .map(function (frame) {
-          var cls = frame.label === "Fake" ? "tag--fake" : "tag--real";
-          return (
-            '<figure class="frame"><img class="frame__img" loading="lazy" src="' +
-            frame.image + '" alt="Frame at ' + frame.timestamp + ' seconds" />' +
-            '<figcaption class="frame__meta"><span class="tag ' + cls + '">' +
-            frame.label.toUpperCase() + " " + frame.confidence + "%</span>" +
-            '<span class="frame__time">' + frame.timestamp + "s</span></figcaption></figure>"
-          );
-        })
-        .join("");
-      framesBox.style.display = data.frames.length ? "block" : "none";
+      var evidence = data.evidence || [];
+      framesGrid.innerHTML = evidence.map(renderEvidenceCard).join("");
+      framesBox.style.display = evidence.length ? "block" : "none";
       verdictBox.scrollIntoView({ behavior: "smooth", block: "start" });
     },
   });
