@@ -8,42 +8,57 @@ it: which checks fired, what was measured, and the rule that produced the answer
 
 ---
 
-## Why there are three separate detectors
+## Nothing here looks for faces
 
-A **face swap** and an **AI-generated scene** are different problems, and a detector built for
-one is blind to the other.
+The project began with a face-swap detector, and that turned out to be the wrong question.
 
-A face-swap detector looks for the seam where one face was composited onto another. A fully
-generated scene has no seam, because nothing was composited — it is synthetic all the way
-through. Run a face-swap model on generated footage and it finds a perfectly coherent face and
-reports *Real* with high confidence. This is a category error, not a threshold that can be tuned.
+A face-swap detector hunts for the seam where one face was composited onto another. A fully
+generated scene has no seam, because nothing was composited — it is synthetic throughout. Run a
+face-swap model on generated footage and it finds a perfectly coherent face and reports *Real*
+with high confidence. Worse, MTCNN hallucinates faces in generated scenery: on one landscape clip
+it reported 25 detections at 0.999 confidence, several of them boxes covering half the frame,
+which were then scored and used to declare a face swap in a video containing no people.
 
-Deep Shield therefore runs three checks that never see each other's answer:
+Verdicts are now decided by whether footage behaves like a camera recorded it. A landscape, an
+animation or an empty room is judged exactly the same way as a person talking.
 
 | Check | Looks at | Catches |
 |---|---|---|
-| Face swapping | Face crops | A real video with someone else's face pasted in |
-| AI generation | Pixel statistics of the whole frame | Footage generated outright, with or without a face |
+| Motion and timing | How the picture changes between frames | Generated video, with or without people in it |
+| Texture and noise | Pixel statistics of each frame | Generated stills, and generated frames in a clip |
 | Voice | Acoustic properties of the audio | Cloned or synthesised speech |
 
-Agreement between checks raises confidence. A single flag usually indicates a partial edit —
-real footage given a cloned voice, or a genuine recording with a swapped face.
+Agreement between checks raises confidence. A single flag usually indicates a partial edit — real
+footage given a cloned voice, for instance.
 
 ---
 
 ## How each check works
 
-### 1. Face swapping
+### 1. Motion and timing
 
-Twenty frames are sampled evenly across the clip. MTCNN locates every face, each crop is resized
-to 100×100, and a **ResNet50 + EfficientNetB0** ensemble scores it. The two backbones are frozen
-ImageNet feature extractors; their pooled outputs are concatenated and passed through two 128-unit
-dense layers to a 2-way softmax.
+Frames are sampled across the clip and compared against each other. Sixteen measurements describe
+how the picture moves, none of which exist in a single frame:
 
-A clip is flagged once at least **5** faces are classified as manipulated, since a genuine video
-rarely produces that many false alarms.
+| Group | Measures |
+|---|---|
+| Motion coherence | `warp_residual`, `warp_residual_std`, `flow_smoothness`, `flow_magnitude_var` |
+| Sensor noise | `noise_level`, `noise_stability`, `noise_correlation` |
+| Stability | `hf_flicker`, `edge_instability`, `sharpness_drift`, `longrange_drift` |
+| Physics | `sharpness_motion_corr` |
+| Global drift | `luma_drift`, `colour_drift` |
+| Encoding | `residual_entropy`, `block_persistence` |
 
-### 2. AI generation
+Two behave exactly as physics predicts. **`sharpness_motion_corr`**: a real shutter is open for a
+fraction of a second, so fast movement smears and sharpness falls as motion rises — real footage
+measures −0.34, generated footage measures 0.000, because there is no shutter to simulate.
+**`noise_correlation`**: real sensor grain is regenerated every frame so consecutive frames
+correlate weakly at 0.23, while generated texture is baked into the content and correlates at
+0.85.
+
+This is the strongest detector in the project, and it never touches a face.
+
+### 2. Texture and noise
 
 This check ignores faces entirely. It measures **22 properties of the pixels** and fuses them
 with a pretrained diffusion-image classifier using a gradient-boosted decision tree.
@@ -236,118 +251,186 @@ reflects genuinely unseen data.
 
 ## Getting it running
 
-### 1. Prerequisites
+### Quick start
 
-| Requirement | Why | Check |
-|---|---|---|
-| **Python 3.11** | TensorFlow 2.18 and the pinned scikit-learn need it | `python --version` |
-| **ffmpeg + ffprobe on PATH** | transcoding, audio extraction, YouTube capture | `ffmpeg -version` |
-| ~4 GB disk | model weights and the CLIP download | |
+Copy the whole block for your platform and paste it into a terminal. It clones the repository,
+unpacks the model weights, installs the dependencies and starts the server.
 
-On Windows, install ffmpeg from [gyan.dev](https://www.gyan.dev/ffmpeg/builds/) and add its
-`bin` folder to PATH.
+Before you start you need **Python 3.11** and **ffmpeg**. If you are unsure whether you have them,
+skip to [Prerequisites](#prerequisites) first — the quick start assumes both are already working.
 
-### 2. Install
+#### Windows (PowerShell)
+
+```powershell
+git clone https://github.com/1DeepanshuPathak1/Deep-Shield.git
+cd Deep-Shield
+
+cmd /c copy /b "weights\deepshield-weights.zip.001" + "weights\deepshield-weights.zip.002" + "weights\deepshield-weights.zip.003" "weights\deepshield-weights.zip"
+Expand-Archive -Path "weights\deepshield-weights.zip" -DestinationPath . -Force
+Remove-Item "weights\deepshield-weights.zip"
+
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+flask --app app run --port 5000 --no-reload
+```
+
+If `Activate.ps1` is blocked, run this once and then repeat the line:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+```
+
+#### Windows (Command Prompt)
+
+```bat
+git clone https://github.com/1DeepanshuPathak1/Deep-Shield.git
+cd Deep-Shield
+
+copy /b weights\deepshield-weights.zip.001 + weights\deepshield-weights.zip.002 + weights\deepshield-weights.zip.003 weights\deepshield-weights.zip
+tar -xf weights\deepshield-weights.zip
+del weights\deepshield-weights.zip
+
+python -m venv .venv
+.venv\Scripts\activate.bat
+pip install -r requirements.txt
+
+flask --app app run --port 5000 --no-reload
+```
+
+#### macOS / Linux / Git Bash
 
 ```bash
 git clone https://github.com/1DeepanshuPathak1/Deep-Shield.git
 cd Deep-Shield
 
-python -m venv .venv
-.venv\Scripts\activate          # Windows
-source .venv/bin/activate       # macOS / Linux
-
-pip install -r requirements.txt
-```
-
-`random_forest_model.pkl` is pickled with **scikit-learn 1.2.2**. Newer versions fail to load it
-with `ValueError: node array from the pickle has an incompatible dtype`, so do not upgrade that
-pin.
-
-### 3. Unpack the model weights
-
-Four large weight files ship with the repository, but split across three parts. GitHub rejects
-any single file over 100 MB, and `model_resnet50_efficientnet_weights.h5` alone is 111 MB, so the
-four are compressed into one archive and cut into 90 MB pieces under `weights/`.
-
-Reassemble and extract them **into the project root**, next to `app.py`:
-
-**Windows (PowerShell)**
-
-```powershell
-cmd /c copy /b "weights\deepshield-weights.zip.001" + "weights\deepshield-weights.zip.002" + "weights\deepshield-weights.zip.003" "weights\deepshield-weights.zip"
-Expand-Archive -Path "weights\deepshield-weights.zip" -DestinationPath . -Force
-Remove-Item "weights\deepshield-weights.zip"
-```
-
-**Windows (Command Prompt)**
-
-```bat
-copy /b weights\deepshield-weights.zip.001 + weights\deepshield-weights.zip.002 + weights\deepshield-weights.zip.003 weights\deepshield-weights.zip
-tar -xf weights\deepshield-weights.zip
-del weights\deepshield-weights.zip
-```
-
-**macOS / Linux / Git Bash**
-
-```bash
 cat weights/deepshield-weights.zip.0* > weights/deepshield-weights.zip
-unzip weights/deepshield-weights.zip -d .
+unzip -o weights/deepshield-weights.zip -d .
 rm weights/deepshield-weights.zip
-```
 
-That produces four files in the project root:
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
 
-| File | Size | What it is |
-|---|---|---|
-| `model_resnet50_efficientnet_weights.h5` | 111 MB | Face-crop ensemble, from `deep_fake_audio_model.ipynb` cell 33 |
-| `resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5` | 90 MB | Keras ResNet50 ImageNet weights |
-| `random_forest_model.pkl` | 6 MB | Voice detector |
-| `xgb_model.pkl` | 3.3 MB | Unused at runtime, kept for completeness |
-
-**Verify the download** if a part looks truncated. `weights/SHA256SUMS.txt` holds checksums for
-both the parts and the extracted files:
-
-```bash
-sha256sum -c weights/SHA256SUMS.txt        # Linux / Git Bash
-```
-
-```powershell
-Get-FileHash weights\deepshield-weights.zip.001 -Algorithm SHA256   # Windows, compare by eye
-```
-
-The three models this project trained are committed directly, since they are small:
-`video_model.pkl` (1.9 MB), `fusion_model.pkl` (1.3 MB), `clip_probe.pkl` (20 KB). They need no
-unpacking.
-
-Cloning now pulls roughly 190 MB of weights. `git clone --depth 1` skips the history if you only
-want a working copy.
-
-### 4. Run
-
-```bash
 flask --app app run --port 5000 --no-reload
 ```
 
 Then open **http://localhost:5000**.
 
-Use `--no-reload`. Without it Flask's reloader loads TensorFlow, MTCNN and CLIP twice, roughly
-doubling a startup that already takes 30–60 seconds. The first run also downloads the CLIP
-weights (~600 MB) to `~/.cache/huggingface`, so allow extra time.
-
-**Flask caches Jinja templates when not in debug mode.** Restart the server after editing any
-template or you will keep seeing the old page.
-
-### 5. First things to try
-
-| Page | Try |
-|---|---|
-| `/index2` | A video, with or without faces |
-| `/image` | Any still image |
-| `/combined` | A clip with sound, or paste a YouTube link |
-| `/results` | The measured performance charts |
+The first request takes **30–60 seconds** while TensorFlow, MTCNN and CLIP load, and the very
+first run also downloads CLIP (~600 MB) into `~/.cache/huggingface`. Later requests are fast.
 
 ---
+
+### Prerequisites
+
+| Requirement | Why it is needed |
+|---|---|
+| Python 3.11 | TensorFlow 2.18 and the pinned scikit-learn require it |
+| ffmpeg and ffprobe on PATH | transcoding, audio extraction, YouTube capture |
+| git | cloning |
+| ~4 GB free disk | weights, dependencies and the CLIP download |
+
+Check what you already have:
+
+```bash
+python --version     # want 3.11.x
+ffmpeg -version      # want any version, just needs to run
+git --version
+```
+
+**Installing ffmpeg**
+
+```powershell
+winget install Gyan.FFmpeg        # Windows
+```
+
+```bash
+brew install ffmpeg               # macOS
+sudo apt install ffmpeg           # Debian / Ubuntu
+```
+
+After installing on Windows, **close and reopen the terminal** so PATH refreshes, then confirm
+`ffmpeg -version` runs. Without ffmpeg the site loads but video and YouTube analysis fail.
+
+**Python 3.11 specifically.** 3.12 and 3.13 will not install TensorFlow 2.18. If `python --version`
+shows something else, install 3.11 from [python.org](https://www.python.org/downloads/release/python-3119/)
+and use its full path to create the virtual environment, for example:
+
+```powershell
+& "C:\Users\<you>\AppData\Local\Programs\Python\Python311\python.exe" -m venv .venv
+```
+
+---
+
+### What the weights step is doing
+
+The four large weight files total 211 MB. GitHub refuses any single file over 100 MB, and
+`model_resnet50_efficientnet_weights.h5` is 111 MB by itself, so they are compressed into one
+archive and split into three parts under `weights/`. The commands above join the parts back into
+one zip, extract it into the project root next to `app.py`, and delete the rebuilt zip.
+
+After extraction the project root contains:
+
+| File | Size | What it is |
+|---|---|---|
+| `model_resnet50_efficientnet_weights.h5` | 111 MB | Face-crop ensemble, from `deep_fake_audio_model.ipynb` cell 33 |
+| `resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5` | 90 MB | Keras ResNet50 ImageNet weights |
+| `random_forest_model.pkl` | 5.8 MB | Voice detector |
+| `xgb_model.pkl` | 3.3 MB | Unused at runtime, kept for completeness |
+
+`video_model.pkl`, `fusion_model.pkl` and `clip_probe.pkl` are committed directly and need no
+unpacking.
+
+If a part downloaded badly, compare against the published checksums:
+
+```bash
+sha256sum -c weights/SHA256SUMS.txt                                    # Linux / Git Bash
+```
+
+```powershell
+Get-FileHash weights\deepshield-weights.zip.001 -Algorithm SHA256      # Windows, compare by eye
+```
+
+---
+
+### Check it worked
+
+With the server running, in a second terminal:
+
+```bash
+curl -o /dev/null -s -w "%{http_code}\n" http://localhost:5000/
+```
+
+`200` means the site is up. Or just open the pages:
+
+| Page | URL | Try |
+|---|---|---|
+| Video | http://localhost:5000/index2 | Any clip, with or without people in it |
+| Image | http://localhost:5000/image | Any still image |
+| Audio | http://localhost:5000/index3 | A voice recording |
+| Full Analysis | http://localhost:5000/combined | A clip with sound, or a YouTube link |
+| Results | http://localhost:5000/results | Measured model performance |
+
+---
+
+### If something goes wrong
+
+| Symptom | Cause and fix |
+|---|---|
+| `ModuleNotFoundError: No module named 'flask'` | The virtual environment is not active. Re-run the activate line; your prompt should show `(.venv)`. |
+| `Activate.ps1 cannot be loaded` | PowerShell script policy. Run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, then activate again. |
+| `Could not find a version that satisfies tensorflow` | Not Python 3.11. Check `python --version` and rebuild the venv with a 3.11 interpreter. |
+| `ValueError: node array from the pickle has an incompatible dtype` | scikit-learn was upgraded past 1.2.2. Run `pip install -r requirements.txt` again; do not upgrade that pin. |
+| `No such file or directory: 'model_resnet50_efficientnet_weights.h5'` | The weights step did not run, or extracted to the wrong place. The `.h5` files must sit beside `app.py`, not inside `weights/`. |
+| `ffmpeg not found`, or video and YouTube analysis fail | ffmpeg is not on PATH. Install it, open a new terminal, confirm `ffmpeg -version` runs. |
+| First analysis hangs for a minute | Expected. TensorFlow, MTCNN and CLIP load on the first request, and CLIP downloads ~600 MB on the very first run. |
+| Port 5000 already in use | Use another port: `flask --app app run --port 5050 --no-reload`. |
+| Edited a template but the page does not change | Flask caches templates outside debug mode. Stop the server with Ctrl+C and start it again. |
+
+Two flags worth keeping. **`--no-reload`** matters because the reloader loads TensorFlow, MTCNN and
+CLIP twice, doubling an already slow startup. **`--port`** is only needed if 5000 is taken.
 
 ## Directory structure
 
