@@ -6,6 +6,8 @@ __pycache__/
 *.egg-info/
 
 *.h5
+*.zip.[0-9][0-9][0-9]
+!weights/deepshield-weights.zip.[0-9][0-9][0-9]
 *.pkl
 !fusion_model.pkl
 
@@ -34,3 +36,5 @@ _video/
 _vparts/
 video_cache_norm.npz
 _video_norm/
+!weights/
+!weights/SHA256SUMS.txt

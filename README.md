@@ -264,20 +264,64 @@ pip install -r requirements.txt
 with `ValueError: node array from the pickle has an incompatible dtype`, so do not upgrade that
 pin.
 
-### 3. Add the large model weights
+### 3. Unpack the model weights
 
-Four files are too large for GitHub and must be placed in the project root before the app will
-start. `model_resnet50_efficientnet_weights.h5` alone is 112 MB, above GitHub's 100 MB limit.
+Four large weight files ship with the repository, but split across three parts. GitHub rejects
+any single file over 100 MB, and `model_resnet50_efficientnet_weights.h5` alone is 111 MB, so the
+four are compressed into one archive and cut into 90 MB pieces under `weights/`.
 
-| File | Size | Where it comes from |
+Reassemble and extract them **into the project root**, next to `app.py`:
+
+**Windows (PowerShell)**
+
+```powershell
+cmd /c copy /b "weights\deepshield-weights.zip.001" + "weights\deepshield-weights.zip.002" + "weights\deepshield-weights.zip.003" "weights\deepshield-weights.zip"
+Expand-Archive -Path "weights\deepshield-weights.zip" -DestinationPath . -Force
+Remove-Item "weights\deepshield-weights.zip"
+```
+
+**Windows (Command Prompt)**
+
+```bat
+copy /b weights\deepshield-weights.zip.001 + weights\deepshield-weights.zip.002 + weights\deepshield-weights.zip.003 weights\deepshield-weights.zip
+tar -xf weights\deepshield-weights.zip
+del weights\deepshield-weights.zip
+```
+
+**macOS / Linux / Git Bash**
+
+```bash
+cat weights/deepshield-weights.zip.0* > weights/deepshield-weights.zip
+unzip weights/deepshield-weights.zip -d .
+rm weights/deepshield-weights.zip
+```
+
+That produces four files in the project root:
+
+| File | Size | What it is |
 |---|---|---|
-| `model_resnet50_efficientnet_weights.h5` | 112 MB | `deep_fake_audio_model.ipynb`, cell 33 |
-| `resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5` | 91 MB | Standard Keras ResNet50 ImageNet weights |
-| `random_forest_model.pkl` | 6 MB | `deep_fake_audio_model.ipynb` |
-| `xgb_model.pkl` | 3.4 MB | Optional, not used at runtime |
+| `model_resnet50_efficientnet_weights.h5` | 111 MB | Face-crop ensemble, from `deep_fake_audio_model.ipynb` cell 33 |
+| `resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5` | 90 MB | Keras ResNet50 ImageNet weights |
+| `random_forest_model.pkl` | 6 MB | Voice detector |
+| `xgb_model.pkl` | 3.3 MB | Unused at runtime, kept for completeness |
 
-The three trained models this project produced **are committed**, since they are small:
-`video_model.pkl` (1.9 MB), `fusion_model.pkl` (1.3 MB), `clip_probe.pkl` (20 KB).
+**Verify the download** if a part looks truncated. `weights/SHA256SUMS.txt` holds checksums for
+both the parts and the extracted files:
+
+```bash
+sha256sum -c weights/SHA256SUMS.txt        # Linux / Git Bash
+```
+
+```powershell
+Get-FileHash weights\deepshield-weights.zip.001 -Algorithm SHA256   # Windows, compare by eye
+```
+
+The three models this project trained are committed directly, since they are small:
+`video_model.pkl` (1.9 MB), `fusion_model.pkl` (1.3 MB), `clip_probe.pkl` (20 KB). They need no
+unpacking.
+
+Cloning now pulls roughly 190 MB of weights. `git clone --depth 1` skips the history if you only
+want a working copy.
 
 ### 4. Run
 
@@ -325,7 +369,13 @@ Deep-Shield/
 ├── video_model.pkl           Video model, trained on 10 generators   (committed)
 ├── fusion_model.pkl          Image generation model                  (committed)
 ├── clip_probe.pkl            CLIP linear probe                       (committed)
-├── *.h5                      Large weights — supply separately       (gitignored)
+│
+├── weights/                  Large weights, split for GitHub's 100 MB limit
+│   ├── deepshield-weights.zip.001    88 MB
+│   ├── deepshield-weights.zip.002    88 MB
+│   ├── deepshield-weights.zip.003    12 MB
+│   └── SHA256SUMS.txt        Checksums for parts and extracted files
+├── *.h5, *.pkl               Extracted from weights/ — see step 3    (gitignored)
 │
 ├── templates/
 │   ├── base.html             Shared shell: nav, theme, scripts
