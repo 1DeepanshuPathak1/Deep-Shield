@@ -421,6 +421,7 @@ curl -o /dev/null -s -w "%{http_code}\n" http://localhost:5000/
 |---|---|
 | `ModuleNotFoundError: No module named 'flask'` | The virtual environment is not active. Re-run the activate line; your prompt should show `(.venv)`. |
 | `Activate.ps1 cannot be loaded` | PowerShell script policy. Run `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`, then activate again. |
+| `No such file or directory: '\colabtools\...google-colab...tar.gz'` | You have an old `requirements.txt`. Run `git pull` and install again. |
 | `Could not find a version that satisfies tensorflow` | Not Python 3.11. Check `python --version` and rebuild the venv with a 3.11 interpreter. |
 | `ValueError: node array from the pickle has an incompatible dtype` | scikit-learn was upgraded past 1.2.2. Run `pip install -r requirements.txt` again; do not upgrade that pin. |
 | `No such file or directory: 'model_resnet50_efficientnet_weights.h5'` | The weights step did not run, or extracted to the wrong place. The `.h5` files must sit beside `app.py`, not inside `weights/`. |
